@@ -3,6 +3,8 @@
 #include "Logic.h"
 #include "View.h"
 #include "Bot.h"
+#include "SaveLoad.h"
+
 
 // Định nghĩa biến toàn cục
 _POINT _A[BOARD_SIZE][BOARD_SIZE];
@@ -19,11 +21,13 @@ bool _IS_PAUSED = false;
 
 //hàm main
 int main() {
+    
     InitWindow(1450 , 900 , "Do An Caro - KHTN - MENU & BOT");
     SetTargetFPS(60);
     SetExitKey(0);
     Texture2D background = LoadTexture("background.png");
     Texture2D menuBg = LoadTexture("menu_bg.png");
+    Texture2D huongdanImg = LoadTexture("huongdan.png");
     Font gameFont = LoadFont("game_font.ttf");
 
     ResetData();
@@ -42,7 +46,16 @@ int main() {
         else if (_GAME_STATE == 1) {
             DrawAndHandleGame(background, gameFont);
         }
-
+        else if (_GAME_STATE == 2) {
+            DrawAndHandleLoad(menuBg, gameFont); // đổi tên ảnh ở đây 
+        }
+        
+        else if (_GAME_STATE == 3) {
+            DrawAndHandleInfo(menuBg, gameFont);
+        }
+        else if (_GAME_STATE == 4) {
+            DrawAndHandleInstructions(menuBg, huongdanImg, gameFont);
+        }
     }
 
     UnloadFont(gameFont);
