@@ -103,6 +103,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\ThinkPad\Downloads\raylib-5.5_win64_msvc16\raylib-5.5_win64_msvc16/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -130,11 +131,13 @@
     <ClCompile Include="Data.h" />
     <ClCompile Include="Logic.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="SaveLoad.cpp" />
     <ClCompile Include="View.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Bot.h" />
     <ClInclude Include="Logic.h" />
+    <ClInclude Include="SaveLoad.h" />
     <ClInclude Include="View.h" />
   </ItemGroup>
   <ItemGroup>
