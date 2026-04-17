@@ -4,6 +4,7 @@
 #include "Logic.h"
 #include "SaveLoad.h"
 #include "raylib.h" 
+#include "Audio.h"
 
 // ==========================================================
 // HÀM VẼ BÀN CỜ VÀ QUÂN CỜ BẰNG RAYLIB
@@ -56,6 +57,7 @@ void DrawBoardRaylib() {
 void DrawAndHandleMenu(Texture2D background, Font gameFont) {
     static int menuFocus = 0;
     const int NUM_BUTTONS = 5;
+    int oldFocus = menuFocus;
 
     // Mảng chứa tên các nút (Dễ dàng thêm/bớt sau này)
     const char* btnLabels[NUM_BUTTONS] = {
@@ -110,6 +112,8 @@ void DrawAndHandleMenu(Texture2D background, Font gameFont) {
         // Vẽ chữ (tự động nội suy từ mảng btnLabels)
         DrawTextEx(gameFont, btnLabels[i], Vector2{ btnRec.x + 80, btnRec.y + 20 }, 40, 2, isFocused ? WHITE : BLACK);
     }
+    
+    if (menuFocus != oldFocus) PlayNavigateSfx();
 
     // Nhận thêm phím ENTER
     if (IsKeyPressed(KEY_ENTER)) {
@@ -119,11 +123,12 @@ void DrawAndHandleMenu(Texture2D background, Font gameFont) {
 
     // --- XỬ LÝ CHUYỂN CẢNH KHI ĐÃ CLICK ---
     if (isClicked) {
+        PlaySelectSfx();
         if (clickedIndex == 0) { // PvP
             _GAME_MODE = 1; _GAME_STATE = 1; _IS_PAUSED = false;
             ResetData(); _p1Moves = 0; _p2Moves = 0; _WINNER = 2;
         }
-        else if (menuFocus == 1) {
+        else if (clickedIndex == 1) {
             // Chế độ PvE (Bot)
             _GAME_MODE = 2;
             _GAME_STATE = 2;
@@ -134,7 +139,7 @@ void DrawAndHandleMenu(Texture2D background, Font gameFont) {
             _WINNER = 2;
         }
         else if (clickedIndex == 2) { // File Game
-            _GAME_STATE = 2;
+            _GAME_STATE = 5;
         }
         else if (clickedIndex == 3) { // Thông tin
             _GAME_STATE = 3;
@@ -153,20 +158,27 @@ void HandleGameInput() {
     // Bấm ESC để mở/đóng Menu tạm dừng (chỉ khi chưa ai thắng)
     if (IsKeyPressed(KEY_ESCAPE) && _WINNER == 2) {
         _IS_PAUSED = !_IS_PAUSED;
+        PlayPauseSfx();
     }
 
     // Nếu game đang chạy bình thường (chưa ai thắng và không bị Pause)
     if (_WINNER == 2 && !_IS_PAUSED) {
         if (_TURN == true) { // --- LƯỢT NGƯỜI CHƠI 1 (Điều khiển bằng W A S D) ---
+            int oldX = _X;
+            int oldY = _Y;
+
             if (IsKeyPressed(KEY_W)) MoveUp();
             if (IsKeyPressed(KEY_S)) MoveDown();
             if (IsKeyPressed(KEY_A)) MoveLeft();
             if (IsKeyPressed(KEY_D)) MoveRight();
 
+            if (_X != oldX || _Y != oldY) PlayBoardMoveSfx();
+
             // Nhấn Enter để đánh cờ
             if (IsKeyPressed(KEY_ENTER)) {
                 // CheckBoard trả về khác 0 nếu đánh thành công
                 if (CheckBoard(_X, _Y) != 0) {
+                    PlayPlaceSfx();
                     _p1Moves++; // Tăng số bước
                     _WINNER = TestBoard(_X, _Y); // Kiểm tra thắng thua
                     // Nếu chưa ai thắng thì đổi lượt cho người 2/Bot
@@ -176,14 +188,20 @@ void HandleGameInput() {
         }
         else { // --- LƯỢT NGƯỜI CHƠI 2 HOẶC MÁY ---
             if (_GAME_MODE == 1) { // LƯỢT NGƯỜI CHƠI 2 (Điều khiển bằng Phím mũi tên)
+                int oldX = _X;
+                int oldY = _Y;
+
                 if (IsKeyPressed(KEY_UP)) MoveUp();
                 if (IsKeyPressed(KEY_DOWN)) MoveDown();
                 if (IsKeyPressed(KEY_LEFT)) MoveLeft();
                 if (IsKeyPressed(KEY_RIGHT)) MoveRight();
 
+                if (_X != oldX || _Y != oldY) PlayBoardMoveSfx();
+
                 // Dùng Numpad Enter hoặc Enter thường
                 if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) {
                     if (CheckBoard(_X, _Y) != 0) {
+                        PlayPlaceSfx();
                         _p2Moves++;
                         _WINNER = TestBoard(_X, _Y);
                         if (_WINNER == 2) _TURN = !_TURN;
@@ -195,6 +213,7 @@ void HandleGameInput() {
 
                 // Đánh cờ tại vị trí Bot vừa quyết định
                 if (CheckBoard(_X, _Y) != 0) {
+                    PlayPlaceSfx();
                     _p2Moves++;
                     _WINNER = TestBoard(_X, _Y);
                     if (_WINNER == 2) _TURN = !_TURN;
@@ -243,11 +262,14 @@ void DrawAndHandleGameOver(Font gameFont) {
     if (_WINNER == 2) return; // Nếu game chưa kết thúc thì bỏ qua hàm này
 
     static int gameOverFocus = 0; // 0: Nút Play Again, 1: Nút Menu
+    int oldFocus = gameOverFocus;
     static int waitTimer = 0;
     waitTimer++;
     // Nhận phím điều hướng trái phải
     if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) gameOverFocus = 0;
     if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) gameOverFocus = 1;
+
+    if (gameOverFocus != oldFocus) PlayNavigateSfx();
 
     // Phủ một lớp màu đen mờ lên toàn bộ màn hình game
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.4f));
@@ -291,6 +313,8 @@ void DrawAndHandleGameOver(Font gameFont) {
     // Xử lý khi nhấn nút
     if (waitTimer > 30) {
         if (IsKeyPressed(KEY_ENTER) || (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && (mouseOnPlay || mouseOnMenu))) {
+            PlaySelectSfx();
+
             if (gameOverFocus == 0) {
                 int currentMode = _GAME_MODE;
                 ResetData();
@@ -317,6 +341,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
 
     const int NUM_BUTTONS = 4;
     static int pauseFocus = 0;
+    int oldFocus = pauseFocus;
 
     // Mảng tên 4 nút
     const char* btnLabels[NUM_BUTTONS] = {
@@ -353,12 +378,18 @@ void DrawAndHandlePauseMenu(Font gameFont) {
         }
         if (IsKeyPressed(KEY_ENTER) && nameCount > 0) {
             std::string fileName = std::string(saveName) + ".sav";
+            PlaySelectSfx();
             SaveGame(fileName); // GỌI HÀM LƯU TỪ TỆP SaveLoad.h
             isTypingSave = false;
             _IS_PAUSED = false; // Lưu xong thì đóng menu pause
         }
-        if (IsKeyPressed(KEY_ESCAPE)) isTypingSave = false; // Hủy gõ
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            isTypingSave = false;
+            PlaySelectSfx();
+        } // Hủy gõ
     }
+
+    if (!isTypingSave && pauseFocus != oldFocus) PlayNavigateSfx();
 
     // --- VẼ GIAO DIỆN ---
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.7f));
@@ -422,6 +453,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
 
         // --- XỬ LÝ KHI CHỌN NÚT ---
         if (isClicked) {
+            PlaySelectSfx();
             if (clickedIndex == 0) {
                 // 1. Tiếp tục
                 _IS_PAUSED = false;
@@ -447,6 +479,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
 void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font gameFont) {
     // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
         _GAME_STATE = 0;
     }
 
@@ -473,6 +506,7 @@ void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font
 void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
         _GAME_STATE = 0;
     }
 
@@ -516,6 +550,7 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
 // Trong View.cpp
 void DrawAndHandleDifficultyMenu(Font gameFont) {
     static int diffFocus = 1; // 0: Easy, 1: Normal, 2: Hard
+    int oldFocus = diffFocus;
 
     // 1. Nhận phím điều hướng (A/D hoặc Trái/Phải)
     if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
@@ -524,6 +559,8 @@ void DrawAndHandleDifficultyMenu(Font gameFont) {
     if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
         diffFocus = (diffFocus + 1) % 3;
     }
+
+    if (diffFocus != oldFocus) PlayNavigateSfx();
 
     BeginDrawing();
     ClearBackground(WHITE); 
@@ -546,6 +583,7 @@ void DrawAndHandleDifficultyMenu(Font gameFont) {
 
         // Xử lý Click chuột trái
         if (isHover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            PlaySelectSfx();
             _BOT_DIFFICULTY = diffFocus;
             _GAME_MODE = 2;   // Xác nhận đánh với máy
             _GAME_STATE = 1;  // Vào game
@@ -556,6 +594,7 @@ void DrawAndHandleDifficultyMenu(Font gameFont) {
 
     // 2. Nhấn Enter để xác nhận
     if (IsKeyPressed(KEY_ENTER)) {
+        PlaySelectSfx();
         _BOT_DIFFICULTY = diffFocus;
         _GAME_MODE = 2;
         _GAME_STATE = 1;
@@ -564,7 +603,10 @@ void DrawAndHandleDifficultyMenu(Font gameFont) {
     }
     
     // 3. Nhấn ESC để quay lại Menu chính
-    if (IsKeyPressed(KEY_ESCAPE)) _GAME_STATE = 0;
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _GAME_STATE = 0;
+    }
 
     EndDrawing();
 }

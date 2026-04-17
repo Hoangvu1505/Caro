@@ -3,6 +3,7 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include "Audio.h"
 
 // ==========================================
 // 1. GHI TOÀN BỘ TRẠNG THÁI GAME RA FILE
@@ -77,6 +78,9 @@ void DrawAndHandleLoad(Texture2D background, Font gameFont) {
     static int focus = 0;
     static int currentTab = 0; // 0: Đánh 2 người, 1: Đánh với máy
 
+    int oldFocus = focus;
+    int oldTab = currentTab;
+
     // Phân loại file vào 2 nhóm khi vừa mở màn hình
     if (!isLoaded) {
         pvpFiles.clear();
@@ -109,10 +113,13 @@ void DrawAndHandleLoad(Texture2D background, Font gameFont) {
     if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) { if (focus < (int)currentList.size() - 1) focus++; }
 
     // --- THOÁT ---
-    if (IsKeyPressed(KEY_ESCAPE)) { _GAME_STATE = 0; isLoaded = false; }
+    if (IsKeyPressed(KEY_ESCAPE)) { PlaySelectSfx(); _GAME_STATE = 0; isLoaded = false; }
+
+    if (oldFocus != focus || oldTab != currentTab) PlayNavigateSfx();
 
     // --- BẮT PHÍM ENTER (LOAD FILE) ---
     if (IsKeyPressed(KEY_ENTER) && !currentList.empty()) {
+        PlaySelectSfx();
         if (LoadGame(currentList[focus])) {
             _GAME_STATE = 1;
             _IS_PAUSED = false;
@@ -122,6 +129,7 @@ void DrawAndHandleLoad(Texture2D background, Font gameFont) {
 
     // --- BẮT PHÍM DELETE (XÓA FILE) ---
     if (IsKeyPressed(KEY_DELETE) && !currentList.empty()) {
+        PlaySelectSfx();
         if (DeleteGame(currentList[focus])) {
             currentList.erase(currentList.begin() + focus);
             if (focus >= (int)currentList.size() && focus > 0) focus--;
