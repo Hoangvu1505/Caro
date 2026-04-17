@@ -18,6 +18,7 @@ int _WINNER = 2;
 int _GAME_STATE = 0;
 int _GAME_MODE = 1;
 bool _IS_PAUSED = false;
+int _BOT_DIFFICULTY = 0;
 
 //hàm main
 int main() {
@@ -47,6 +48,7 @@ int main() {
             DrawAndHandleGame(background, gameFont);
         }
         else if (_GAME_STATE == 2) {
+            DrawAndHandleDifficultyMenu(gameFont);
             DrawAndHandleLoad(menuBg, gameFont); // đổi tên ảnh ở đây 
         }
         

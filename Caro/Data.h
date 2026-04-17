@@ -39,6 +39,7 @@ extern int _GAME_STATE;     // 0: Đang ở Menu, 1: Đang chơi game
 extern int _GAME_MODE;      // 1: Người vs Người (PvP), 2: Người vs Máy (PvE)
 extern bool _IS_PAUSED;     // Trạng thái tạm dừng trò chơi
 extern int _COMMAND;        // Lệnh/thao tác hiện tại từ người dùng (bàn phím/chuột)
+extern int _BOT_DIFFICULTY; // Mức độ Bot (Dễ - Trunh bình - Khó)
 
 // --- Dữ liệu bàn cờ & Tọa độ ---
 extern _POINT _A[BOARD_SIZE][BOARD_SIZE]; // Ma trận lưu trữ dữ liệu bàn cờ 2D

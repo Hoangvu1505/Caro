@@ -123,9 +123,15 @@ void DrawAndHandleMenu(Texture2D background, Font gameFont) {
             _GAME_MODE = 1; _GAME_STATE = 1; _IS_PAUSED = false;
             ResetData(); _p1Moves = 0; _p2Moves = 0; _WINNER = 2;
         }
-        else if (clickedIndex == 1) { // PvE
-            _GAME_MODE = 2; _GAME_STATE = 1; _IS_PAUSED = false;
-            ResetData(); _p1Moves = 0; _p2Moves = 0; _WINNER = 2;
+        else if (menuFocus == 1) {
+            // Chế độ PvE (Bot)
+            _GAME_MODE = 2;
+            _GAME_STATE = 2;
+            _IS_PAUSED = false;
+            ResetData();
+            _p1Moves = 0;
+            _p2Moves = 0;
+            _WINNER = 2;
         }
         else if (clickedIndex == 2) { // File Game
             _GAME_STATE = 2;
@@ -500,6 +506,65 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
 
     // Hướng dẫn thoát
     DrawText("Nhan ESC de quay lai Menu", GetScreenWidth() / 2 - 150, GetScreenHeight() - 80, 20, RED);
+
+    EndDrawing();
+}
+
+// ==========================================================
+// HÀM XỬ LÝ MENU CHỌN CHẾ ĐỘ BOT
+// ==========================================================
+// Trong View.cpp
+void DrawAndHandleDifficultyMenu(Font gameFont) {
+    static int diffFocus = 1; // 0: Easy, 1: Normal, 2: Hard
+
+    // 1. Nhận phím điều hướng (A/D hoặc Trái/Phải)
+    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
+        diffFocus = (diffFocus - 1 + 3) % 3;
+    }
+    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
+        diffFocus = (diffFocus + 1) % 3;
+    }
+
+    BeginDrawing();
+    ClearBackground(WHITE); 
+
+    DrawTextEx(gameFont, "Chon do kho", Vector2{ (float)GetScreenWidth()/2 - 250, 200 }, 60, 2, BLACK);
+
+    const char* diffLabels[] = { "De", "Trung binh", "Kho" };
+    for (int i = 0; i < 3; i++) {
+        Rectangle btn = { (float)GetScreenWidth()/2 - 450 + (i * 320), 400, 260, 100 };
+        bool isHover = (diffFocus == i);
+
+        // Logic hover bằng chuột: Di chuyển chuột vào nút nào thì focus vào nút đó
+        if (CheckCollisionPointRec(GetMousePosition(), btn)) diffFocus = i;
+
+        DrawRectangleRec(btn, isHover ? RED : GRAY);
+        DrawRectangleLinesEx(btn, 4, WHITE);
+        
+        // Căn lề chữ vào giữa nút (tùy chỉnh tọa độ +50, +30 cho khớp font của bạn)
+        DrawTextEx(gameFont, diffLabels[i], Vector2{ btn.x + 50, btn.y + 30 }, 40, 2, isHover ? WHITE : BLACK);
+
+        // Xử lý Click chuột trái
+        if (isHover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            _BOT_DIFFICULTY = diffFocus;
+            _GAME_MODE = 2;   // Xác nhận đánh với máy
+            _GAME_STATE = 1;  // Vào game
+            ResetData();      // Xóa bàn cờ cũ
+            _p1Moves = 0; _p2Moves = 0; // Reset số bước đi
+        }
+    }
+
+    // 2. Nhấn Enter để xác nhận
+    if (IsKeyPressed(KEY_ENTER)) {
+        _BOT_DIFFICULTY = diffFocus;
+        _GAME_MODE = 2;
+        _GAME_STATE = 1;
+        ResetData();
+        _p1Moves = 0; _p2Moves = 0;
+    }
+    
+    // 3. Nhấn ESC để quay lại Menu chính
+    if (IsKeyPressed(KEY_ESCAPE)) _GAME_STATE = 0;
 
     EndDrawing();
 }
