@@ -41,17 +41,17 @@ int Bot_CheckSequences(int r, int c, int symbol) {
         int dr = directions[d][0];
         int dc = directions[d][1];
         int consecutive = 1;
-        int blocks = 0;
+        int openEnds = 0; 
 
         // Kiểm tra hướng dương
         for (int i = 1; i < 5; i++) {
             int nr = r + dr * i, nc = c + dc * i;
             if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
                 if (_A[nr][nc].c == symbol) consecutive++;
-                else if (_A[nr][nc].c == 0) break;
-                else { blocks++; break; }
+                else if (_A[nr][nc].c == 0) { openEnds++; break; } // Tính đầu hở
+                else break; 
             }
-            else { blocks++; break; } // Đụng biên cũng là bị chặn
+            else break; 
         }
 
         // Kiểm tra hướng âm
@@ -59,26 +59,46 @@ int Bot_CheckSequences(int r, int c, int symbol) {
             int nr = r - dr * i, nc = c - dc * i;
             if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
                 if (_A[nr][nc].c == symbol) consecutive++;
-                else if (_A[nr][nc].c == 0) break;
-                else { blocks++; break; }
+                else if (_A[nr][nc].c == 0) { openEnds++; break; } // Tính đầu hở
+                else break;
             }
-            else { blocks++; break; }
+            else break;
         }
 
-        // Bảng điểm Heuristic
-        if (consecutive >= 5) total += 10000000;
-        else if (consecutive == 4) {
-            if (blocks == 0) total += 100000;
-            else total += 2500;
+        total += GetPatternScore(consecutive, openEnds, (symbol == 1));
+    }
+    return total;
+}
+
+int Bot_CheckSequences_Hard(int r, int c, int symbol) {
+    int total = 0;
+    int directions[4][2] = { {0, 1}, {1, 0}, {1, 1}, {1, -1} };
+
+    for (int d = 0; d < 4; d++) {
+        int dr = directions[d][0], dc = directions[d][1];
+        int consecutive = 1;
+        int openEnds = 0;
+
+        // Kiểm tra hướng dương
+        for (int i = 1; i < 5; i++) {
+            int nr = r + dr * i, nc = c + dc * i;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                if (_A[nr][nc].c == symbol) consecutive++;
+                else if (_A[nr][nc].c == 0) { openEnds++; break; }
+                else break;
+            } else { break; }
         }
-        else if (consecutive == 3) {
-            if (blocks == 0) total += 3000;
-            else total += 150;
+        // Kiểm tra hướng âm
+        for (int i = 1; i < 5; i++) {
+            int nr = r - dr * i, nc = c - dc * i;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                if (_A[nr][nc].c == symbol) consecutive++;
+                else if (_A[nr][nc].c == 0) { openEnds++; break; }
+                else break;
+            } else { break; }
         }
-        else if (consecutive == 2) {
-            if (blocks == 0) total += 50;
-            else total += 10;
-        }
+
+        total += GetPatternScore(consecutive, openEnds, (symbol == 1));
     }
     return total;
 }
@@ -135,9 +155,26 @@ int Bot_EvaluateBoard() {
     return scoreBot - scorePlayer;
 }
 
+// Tính tổng điểm bàn cờ tĩnh hard
+int Bot_EvaluateBoard_Hard() {
+    int scoreBot = 0;
+    int scorePlayer = 0;
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            if (_A[i][j].c == 1) scoreBot += Bot_CheckSequences_Hard(i, j, 1);
+            else if (_A[i][j].c == -1) scorePlayer += Bot_CheckSequences_Hard(i, j, -1);
+        }
+    }
+    // Trả về hiệu số điểm (ưu tiên Bot thắng)
+    return scoreBot - (int)(scorePlayer * 1.1f); 
+}
+
 // Thuật toán Minimax cốt lõi
 int Bot_Minimax(int depth, bool isBotTurn, int alpha, int beta) {
-    if (depth == 0) return Bot_EvaluateBoard();
+    if (depth == 0) {
+        if (_BOT_DIFFICULTY == 2) return Bot_EvaluateBoard_Hard();
+        return Bot_EvaluateBoard();
+    }
 
     std::vector<std::pair<int, int>> moves = Bot_GetCandidateMoves();
     if (moves.empty()) return Bot_EvaluateBoard();
@@ -206,8 +243,40 @@ bool Bot_CheckUrgentDefense(int& out_r, int& out_c) {
     return false;
 }
 
-// HÀM CHÍNH GỌI BOT
-void BotMove() {
+// Logic bổ trợ cho Hard mode
+long GetPatternScore(int continuous, int openEnds, bool isBot) {
+    if (continuous >= 5) return 100000000; // Thắng tuyệt đối
+
+    switch (continuous) {
+        case 4:
+            if (openEnds == 2) return 5000000; // 4 quân hở 2 đầu -> Chết chắc
+            if (openEnds == 1) return 1000000; // 4 quân bị chặn 1 đầu
+            break;
+        case 3:
+            if (openEnds == 2) return 500000;  // 3 quân hở 2 đầu (nước đôi)
+            if (openEnds == 1) return 50000;   // 3 quân bị chặn 1 đầu
+            break;
+        case 2:
+            if (openEnds == 2) return 5000;
+            if (openEnds == 1) return 500;
+            break;
+    }
+    return 0;
+}
+
+// Hàm tính điểm nhanh tại 1 ô
+int EvaluatePosition(int r, int c) {
+    return Bot_CheckSequences_Hard(r, c, 1) + Bot_CheckSequences_Hard(r, c, -1);
+}
+
+// Hàm bot độ khó thâp
+void BotMove_Easy(std::vector<std::pair<int, int>>& moves) {
+    int idx = rand() % moves.size();
+    _X = _A[moves[idx].first][moves[idx].second].x;
+    _Y = _A[moves[idx].first][moves[idx].second].y;
+}
+
+void BotMove_Normal() {
     int best_r = 7, best_c = 7; // Khởi tạo mặc định ra giữa bàn
     std::vector<std::pair<int, int>> possible_moves = Bot_GetCandidateMoves();
 
@@ -251,7 +320,63 @@ void BotMove() {
         if (beta <= alpha) break;
     }
 
-    // Gán kết quả ngon nhất ra ngoài cho main.cpp xử lý
     _X = _A[best_r][best_c].x;
     _Y = _A[best_r][best_c].y;
+}
+
+// Hàm Bot độ khó cao
+void BotMove_Hard() {
+    int best_r = -1, best_c = -1;
+    int alpha = -2000000000;
+    int beta = 2000000000;
+    int depth = 3; // Nâng lên depth 3 nhờ tối ưu move ordering
+
+    // 1. Lấy ứng viên và SẮP XẾP chúng theo độ ưu tiên (Move Ordering)
+    std::vector<std::pair<int, int>> candidates = Bot_GetCandidateMoves();
+    
+    // Sắp xếp: Ưu tiên những ô gần các quân cờ đã đánh để giảm không gian tìm kiếm
+    std::sort(candidates.begin(), candidates.end(), [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+        return EvaluatePosition(a.first, a.second) > EvaluatePosition(b.first, b.second);
+    });
+
+    int best_score = -2000000000;
+
+    for (auto& move : candidates) {
+        int r = move.first, c = move.second;
+        _A[r][c].c = 1; // Giả sử Bot đánh (Bot ID = 1)
+
+        // Gọi Minimax
+        int score = Bot_Minimax(depth - 1, false, alpha, beta);
+
+        _A[r][c].c = 0; // Hoàn tác
+
+        if (score > best_score) {
+            best_score = score;
+            best_r = r;
+            best_c = c;
+        }
+        alpha = std::max(alpha, best_score);
+    }
+
+    if (best_r != -1) {
+        _X = _A[best_r][best_c].x;
+        _Y = _A[best_r][best_c].y;
+    }
+}
+
+// Hàm điều phối logic bot chính
+void BotMove() {
+    std::vector<std::pair<int, int>> possible_moves = Bot_GetCandidateMoves();
+    if (possible_moves.empty()) {
+        _X = _A[BOARD_SIZE/2][BOARD_SIZE/2].x;
+        _Y = _A[BOARD_SIZE/2][BOARD_SIZE/2].y;
+        return;
+    }
+
+    switch (_BOT_DIFFICULTY) {
+        case 0: BotMove_Easy(possible_moves); break;
+        case 1: BotMove_Normal(); break;
+        case 2: BotMove_Hard(); break;
+        default: BotMove_Normal(); break;
+    }
 }

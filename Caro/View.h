@@ -9,6 +9,7 @@ void HandleGameInput();
 void DrawGameUI(Texture2D background, Font gameFont);
 void DrawAndHandleGameOver(Font gameFont);
 void DrawAndHandlePauseMenu(Font gameFont);
+void DrawAndHandleDifficultyMenu(Font gameFont);
 
 void DrawAndHandleGame(Texture2D background, Font gameFont);
 #endif
