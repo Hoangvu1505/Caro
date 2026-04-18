@@ -1,0 +1,26 @@
+# ===== Build files =====
+*.exe
+*.out
+*.o
+*.obj
+
+# ===== Visual Studio =====
+.vs/
+*.vcxproj.user
+*.vcxproj.filters
+*.sln
+
+# ===== Build folders =====
+Debug/
+Release/
+x64/
+x86/
+build/
+
+# ===== Temp files =====
+*.log
+*.tmp
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
