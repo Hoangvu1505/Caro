@@ -369,7 +369,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
     static bool isSettings = false;
     static int setFocus = 0;
     int oldSetFocus = setFocus;
-
+    bool justExitedSettings = false;
     // ==========================================
     // LOGIC NHẬN BÀN PHÍM & XỬ LÝ DỮ LIỆU
     // ==========================================
@@ -398,6 +398,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
         }
         if ((setFocus == 3 && IsKeyPressed(KEY_ENTER)) || IsKeyPressed(KEY_ESCAPE)) {
             isSettings = false; // Thoát bảng cài đặt mini
+            justExitedSettings = true;
             PlaySelectSfx();
         }
     }
@@ -470,9 +471,19 @@ void DrawAndHandlePauseMenu(Font gameFont) {
             if (CheckCollisionPointRec(GetMousePosition(), btnRec)) {
                 setFocus = i;
                 if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                    if (i == 0) { _BGM_ON = !_BGM_ON; PlaySelectSfx(); }
-                    if (i == 1) { _SFX_ON = !_SFX_ON; PlaySelectSfx(); }
-                    if (i == 3) { isSettings = false; PlaySelectSfx(); }
+                    if (i == 0) { 
+                        _BGM_ON = !_BGM_ON; 
+                        PlaySelectSfx(); 
+                    }
+                    if (i == 1) { 
+                        _SFX_ON = !_SFX_ON; 
+                        PlaySelectSfx(); 
+                    }
+                    if (i == 3) { 
+                        isSettings = false; 
+                        justExitedSettings = true; 
+                        PlaySelectSfx(); 
+                    }
                 }
             }
 
@@ -538,7 +549,7 @@ void DrawAndHandlePauseMenu(Font gameFont) {
             DrawTextEx(gameFont, btnLabels[i], Vector2{ btnRec.x + (btnWidth - textSize.x) / 2, btnRec.y + (btnHeight - textSize.y) / 2 }, 45, 2, isHover ? WHITE : BLACK);
         }
 
-        if (IsKeyPressed(KEY_ENTER)) {
+        if (IsKeyPressed(KEY_ENTER) && !justExitedSettings) {
             isClicked = true;
             clickedIndex = pauseFocus;
         }
