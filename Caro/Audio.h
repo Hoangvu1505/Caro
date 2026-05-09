@@ -10,5 +10,8 @@ void PlaySelectSfx();
 void PlayBoardMoveSfx();
 void PlayPlaceSfx();
 void PlayPauseSfx();
+void PlayWinSfx();
+void PlayLoseSfx();
+void PlayDrawSfx();
 
 #endif

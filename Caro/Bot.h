@@ -9,9 +9,6 @@
 bool Bot_HasNeighbor(int r, int c);
 std::vector<std::pair<int, int>> Bot_GetCandidateMoves();
 
-int Bot_CheckSequences(int r, int c, int symbol);
-int Bot_CheckSequences_Hard(int r, int c, int symbol);
-
 std::vector<std::pair<int, int>> Bot_RankMoves(std::vector<std::pair<int, int>>& moves, int symbol);
 
 bool Bot_CheckWinSimulation(int r, int c, int symbol);
@@ -20,6 +17,8 @@ int Bot_EvaluateBoard();
 int Bot_EvaluateBoard_Hard();
 
 int Bot_Minimax(int depth, bool isBotTurn, int alpha, int beta);
+long ScoreWindow(int cntBot, int cntPlayer);
+long EvaluatePositionImproved(int r, int c);
 
 // Phòng thủ khẩn cấp
 bool Bot_CheckUrgentDefense(int& out_r, int& out_c);

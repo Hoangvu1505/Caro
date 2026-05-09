@@ -1,4 +1,4 @@
-﻿#include "Data.h"
+#include "Data.h"
 #include "Logic.h"
 
 // ==========================================
@@ -15,6 +15,7 @@ void ResetData() {
     }
 
     _TURN = true; // Lượt đầu tiên luôn dành cho Người chơi 1 (True = X)
+    _turnTimer = (float)_turnTimeLimit; // Reset timer về giới hạn hiện tại
 
     // Đặt vị trí con trỏ ban đầu ở chính giữa bàn cờ
     int center = BOARD_SIZE / 2;
