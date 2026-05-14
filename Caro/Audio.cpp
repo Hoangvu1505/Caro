@@ -1,4 +1,4 @@
-﻿#include "Audio.h"
+#include "Audio.h"
 #include "Data.h"
 #include "raylib.h"
 
@@ -26,14 +26,14 @@ void InitGameAudio() {
     gMenuMusic = LoadMusicStream("assets/music/menu.ogg");
     gGameMusic = LoadMusicStream("assets/music/game.ogg");
 
-    gNavigateSfx = LoadSound("assets/sfx/navigate.wav");
-    gSelectSfx = LoadSound("assets/sfx/select.wav");
-    gMoveSfx = LoadSound("assets/sfx/move.wav");
-    gPauseSfx = LoadSound("assets/sfx/pause.wav");
-    gPlaceSfx = LoadSound("assets/sfx/place.wav");
-    gWinSfx = LoadSound("assets/sfx/win.wav");
-    gLoseSfx = LoadSound("assets/sfx/lose.wav");
-    gDrawSfx = LoadSound("assets/sfx/draw.wav");
+    gNavigateSfx = LoadSound("assets/audio/navigate.wav");
+    gSelectSfx = LoadSound("assets/audio/select.wav");
+    gMoveSfx = LoadSound("assets/audio/move.wav");
+    gPauseSfx = LoadSound("assets/audio/pause.wav");
+    gPlaceSfx = LoadSound("assets/audio/place.wav");
+    gWinSfx = LoadSound("assets/audio/win.wav");
+    gLoseSfx = LoadSound("assets/audio/lose.wav");
+    gDrawSfx = LoadSound("assets/audio/draw.wav");
 
     gMenuMusic.looping = true;
     gGameMusic.looping = true;
@@ -151,4 +151,16 @@ void PlayPlaceSfx() {
 
 void PlayPauseSfx() {
     if (gAudioInitialized && _SFX_ON) PlaySound(gPauseSfx);
+}
+
+void PlayWinSfx() {
+    if (gAudioInitialized && _SFX_ON) PlaySound(gWinSfx);
+}
+
+void PlayLoseSfx() {
+    if (gAudioInitialized && _SFX_ON) PlaySound(gLoseSfx);
+}
+
+void PlayDrawSfx() {
+    if (gAudioInitialized && _SFX_ON) PlaySound(gDrawSfx);
 }

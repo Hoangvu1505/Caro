@@ -1,4 +1,4 @@
-﻿#ifndef DATA_H
+#ifndef DATA_H
 #define DATA_H
 
 #include "raylib.h"
@@ -7,10 +7,10 @@
 // 1. CONSTANTS (HẰNG SỐ CƠ BẢN)
 // ==========================================
 // Cấu hình kích thước và tọa độ bàn cờ
-#define BOARD_SIZE 20
-#define CELL_SIZE 43    // Kích thước của mỗi ô vuông trên bàn cờ
-#define LEFT 90       // Tọa độ X bắt đầu vẽ bàn cờ (căn chỉnh cho đồ họa)
-#define TOP 69         // Tọa độ Y bắt đầu vẽ bàn cờ
+#define BOARD_SIZE 15
+#define CELL_SIZE 50    // Kích thước ô phù hợp với 1600x900
+#define LEFT 585        // Căn giữa: (1920 - 15*50)/2
+#define TOP 125         // Căn giữa: (1000 - 15*50)/2
 
 // ==========================================
 // 2. DATA STRUCTURES (CẤU TRÚC DỮ LIỆU)
@@ -49,11 +49,27 @@ extern int _X, _Y;                        // Tọa độ hiện tại (hoặc t�
 extern bool _TURN;          // Lượt chơi hiện tại (VD: true = P1, false = P2)
 extern int _p1Moves;        // Số nước đã đánh của Người chơi 1
 extern int _p2Moves;        // Số nước đã đánh của Người chơi 2
+extern int _p1WinsPvP;      // Số trận thắng của P1 (PvP)
+extern int _p2WinsPvP;      // Số trận thắng của P2 (PvP)
+extern int _p1WinsPvE;      // Số trận thắng của P1 (PvE)
+extern int _botWins;        // Số trận thắng của Bot (PvE)
 extern int _WINNER;         // Người chiến thắng (VD: 0: Chưa có/Hòa, 1: P1, 2: P2)
 extern WinLine _winLine;    // Tọa độ đường thẳng chiến thắng (Để View.cpp biết vẽ đường highlight)
 // --- Trạng thái các âm thanh
-extern bool _BGM_ON;       // Trạng thái Nhạc nền
-extern bool _SFX_ON;       // Trạng thái Âm thanh game
-extern float _MASTER_VOL;  // Âm lượng tổng (0.0 đến 1.0)
+extern bool _BGM_ON;        // Trạng thái Nhạc nền
+extern bool _SFX_ON;        // Trạng thái Âm thanh game
+extern float _MASTER_VOL;   // Âm lượng tổng (0.0 đến 1.0)
 
+// --- Thông tin người chơi ---
+extern char _P1_NAME[51];
+extern char _P2_NAME[51];
+extern int _P1_POKEMON, _P2_POKEMON;
+extern int _ROUND;
+extern float _turnTimer;    // Thời gian còn lại của lượt hiện tại
+extern int _turnTimeLimit;  // Giới hạn thời gian (15, 30, 60)
+
+
+// Thêm khai báo biến toàn cục cho tính năng lưu/đọc file
+extern bool _IS_QUICK_SAVING;
+extern bool _IS_QUICK_LOADING;
 #endif // DATA_H

@@ -1,610 +1,762 @@
-﻿#include "Data.h"
+#include "Data.h"
 #include "View.h"
 #include "Bot.h"
 #include "Logic.h"
 #include "SaveLoad.h"
-#include "raylib.h" 
+#include "raylib.h"
 #include "Audio.h"
+#include <vector>
+#include <filesystem>
+#include <string>
+#include <cmath>
 
-// ==========================================================
-// HÀM VẼ BÀN CỜ VÀ QUÂN CỜ BẰNG RAYLIB
-// ==========================================================
-void DrawBoardRaylib() {
-    // 1. Vẽ lưới bàn cờ (Sử dụng các hằng số LEFT, TOP, CELL_SIZE từ Data.h)
+// ==========================================
+// TÀI NGUYÊN & HÌNH ẢNH
+// ==========================================
+Texture2D _POKEMON_TEXTURES[15];
+bool _POKEMON_LOADED = false;
+
+void LoadPokemonTextures() {
+    if (_POKEMON_LOADED) return;
+
+    const char* paths[15] = {
+        "assets/images/pokemon/0006-Mega-X.png", "assets/images/pokemon/0006-Mega-Y.png",
+        "assets/images/pokemon/0484.png",        "assets/images/pokemon/0483.png",
+        "assets/images/pokemon/0251.png",        "assets/images/pokemon/0146-Galar.png",
+        "assets/images/pokemon/0133-Gmax.png",   "assets/images/pokemon/0025-Gmax.png",
+        "assets/images/pokemon/0094-Gmax.png",   "assets/images/pokemon/0131-Gmax.png",
+        "assets/images/pokemon/0208-Mega.png",   "assets/images/pokemon/0244.png",
+        "assets/images/pokemon/0245.png",        "assets/images/pokemon/0382-Primal.png",
+        "assets/images/pokemon/0249.png"
+    };
+
+    for (int i = 0; i < 15; i++) {
+        _POKEMON_TEXTURES[i] = LoadTexture(paths[i]);
+        SetTextureFilter(_POKEMON_TEXTURES[i], TEXTURE_FILTER_BILINEAR);
+    }
+    _POKEMON_LOADED = true;
+}
+
+// ==========================================
+// GIAO DIỆN BÀN CỜ
+// ==========================================
+void DrawBoardRaylib(Font gameFont) {
+    // Vẽ các đường lưới của bàn cờ
     for (int i = 0; i <= BOARD_SIZE; i++) {
-        // Vẽ các đường ngang (Chạy từ trái sang phải)
         DrawLine(LEFT, TOP + i * CELL_SIZE, LEFT + BOARD_SIZE * CELL_SIZE, TOP + i * CELL_SIZE, BLACK);
-        // Vẽ các đường dọc (Chạy từ trên xuống dưới)
         DrawLine(LEFT + i * CELL_SIZE, TOP, LEFT + i * CELL_SIZE, TOP + BOARD_SIZE * CELL_SIZE, BLACK);
     }
 
-    // 2. Duyệt qua mảng _A để vẽ các quân cờ đã đánh
+    // Vẽ các quân cờ X và O
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
-            // Tinh chỉnh cộng thêm 10 (trục x) và 5 (trục y) để chữ X, O nằm ở tâm ô cờ
-            if (_A[i][j].c == -1) DrawText("X", _A[i][j].x + 10, _A[i][j].y + 5, CELL_SIZE - 10, RED);
-            if (_A[i][j].c == 1)  DrawText("O", _A[i][j].x + 10, _A[i][j].y + 5, CELL_SIZE - 10, BLUE);
+            if (_A[i][j].c == -1) {
+                DrawTextEx(gameFont, "X", Vector2{(float)_A[i][j].x + 12, (float)_A[i][j].y + 2}, CELL_SIZE - 5, 2, RED);
+            }
+            else if (_A[i][j].c == 1) {
+                DrawTextEx(gameFont, "O", Vector2{(float)_A[i][j].x + 10, (float)_A[i][j].y + 2}, CELL_SIZE - 5, 2, BLUE);
+            }
         }
     }
 
-    // 3. Vẽ khung chọn (Cursor) màu xanh lá để biết người chơi đang trỏ vào ô nào
-    DrawRectangleLinesEx(Rectangle{ (float)_X, (float)_Y, (float)CELL_SIZE, (float)CELL_SIZE }, 4.0f, DARKGREEN);
+    // Vẽ khung chọn (Cursor) tại vị trí hiện tại
+    Color cursorColor = _TURN ? RED : BLUE;
+    DrawRectangleLinesEx(Rectangle{ (float)_X, (float)_Y, (float)CELL_SIZE, (float)CELL_SIZE }, 5.0f, cursorColor);
 
-    // 4. Nếu trận đấu đã có người thắng (-1 là X, 1 là O), vẽ đường thẳng nối 5 quân cờ
+    // Vẽ đường gạch nối 5 quân cờ khi có người thắng
     if (_WINNER == -1 || _WINNER == 1) {
-        // Tính tọa độ tâm của quân cờ đầu tiên trong chuỗi thắng
-        float startX = _A[_winLine.r1][_winLine.c1].x + CELL_SIZE / 2.0f;
-        float startY = _A[_winLine.r1][_winLine.c1].y + CELL_SIZE / 2.0f;
-
-        // Tính tọa độ tâm của quân cờ cuối cùng trong chuỗi thắng
-        float endX = _A[_winLine.r2][_winLine.c2].x + CELL_SIZE / 2.0f;
-        float endY = _A[_winLine.r2][_winLine.c2].y + CELL_SIZE / 2.0f;
-
-        Vector2 startPos = { startX, startY };
-        Vector2 endPos = { endX, endY };
-
-        // Chọn màu nét vẽ dựa trên người chiến thắng
-        Color winColor = (_WINNER == -1) ? RED : BLUE;
-
-        // Vẽ đường gạch chéo đi qua 5 quân cờ (Độ dày 10.0f)
-        DrawLineEx(startPos, endPos, 10.0f, winColor);
+        Vector2 startPos = { _A[_winLine.r1][_winLine.c1].x + CELL_SIZE / 2.0f, _A[_winLine.r1][_winLine.c1].y + CELL_SIZE / 2.0f };
+        Vector2 endPos = { _A[_winLine.r2][_winLine.c2].x + CELL_SIZE / 2.0f, _A[_winLine.r2][_winLine.c2].y + CELL_SIZE / 2.0f };
+        DrawLineEx(startPos, endPos, 10.0f, (_WINNER == -1) ? RED : BLUE);
     }
 }
 
-// ==========================================================
-// HÀM XỬ LÝ VÀ VẼ MAIN MENU
-// ==========================================================
+// ==========================================
+// XỬ LÝ VÀ VẼ MAIN MENU
+// ==========================================
 void DrawAndHandleMenu(Texture2D background, Font gameFont) {
     static int menuFocus = 0;
     const int NUM_BUTTONS = 7;
-    int oldFocus = menuFocus;
-
-    // Mảng chứa tên các nút (Dễ dàng thêm/bớt sau này)
-    const char* btnLabels[NUM_BUTTONS] = {
-        "1. DANH 2 NGUOI",
-        "2. DANH VOI MAY",
-        "3. FILE GAME",
-        "4. THONG TIN",
-        "5. HUONG DAN",
-        "6. CAI DAT",
-        "7. THOAT GAME"
-        
+    const char* btnLabels[] = {
+        "ĐÁNH 2 NGƯỜI", "ĐÁNH VỚI MÁY", "FILE GAME", 
+        "THÔNG TIN", "HƯỚNG DẪN", "CÀI ĐẶT", "THOÁT GAME"
     };
 
-    // --- LOGIC NHẬN BÀN PHÍM ---
+    int oldFocus = menuFocus;
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) menuFocus = (menuFocus - 1 + NUM_BUTTONS) % NUM_BUTTONS;
     if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) menuFocus = (menuFocus + 1) % NUM_BUTTONS;
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
 
-    // Vẽ nền và tiêu đề
-    DrawTexturePro(background, Rectangle{ 0, 0, (float)background.width, (float)background.height }, Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2{ 0, 0 }, 0.0f, WHITE);
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
-    DrawTextEx(gameFont, "GAME CO CARO", Vector2{ (float)GetScreenWidth() / 2 - 300, 80 }, 100, 2, WHITE);
-
-    // Thông số kích thước chung cho tất cả các nút
-    int btnWidth = 500;
-    int btnHeight = 80;
-    int startX = GetScreenWidth() / 2 - btnWidth / 2;
-    int startY = 220;
-    int gap = 100; // Khoảng cách giữa các nút
-
-    bool isClicked = false;
-    int clickedIndex = -1;
-
-    // --- VÒNG LẶP VẼ VÀ XỬ LÝ CÁC NÚT ---
-    for (int i = 0; i < NUM_BUTTONS; i++) {
-        Rectangle btnRec = { (float)startX, (float)(startY + i * gap), (float)btnWidth, (float)btnHeight };
-
-        // Kiểm tra chuột có trỏ vào nút thứ i không
-        if (CheckCollisionPointRec(GetMousePosition(), btnRec)) {
-            menuFocus = i; // Chuột đè quyền của bàn phím
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                isClicked = true;
-                clickedIndex = i;
-            }
-        }
-
-        bool isFocused = (menuFocus == i);
-
-        // Vẽ nút: Đổi màu và làm viền dày lên (6px) nếu đang được chọn
-        DrawRectangleRec(btnRec, isFocused ? DARKGRAY : LIGHTGRAY);
-        DrawRectangleLinesEx(btnRec, isFocused ? 6.0f : 4.0f, BLACK);
-
-        // Vẽ chữ (tự động nội suy từ mảng btnLabels)
-        DrawTextEx(gameFont, btnLabels[i], Vector2{ btnRec.x + 80, btnRec.y + 20 }, 40, 2, isFocused ? WHITE : BLACK);
-    }
-    
-    if (menuFocus != oldFocus) PlayNavigateSfx();
-
-    // Nhận thêm phím ENTER
-    if (IsKeyPressed(KEY_ENTER)) {
-        isClicked = true;
-        clickedIndex = menuFocus;
-    }
-
-    // --- XỬ LÝ CHUYỂN CẢNH KHI ĐÃ CLICK ---
-    if (isClicked) {
-        PlaySelectSfx();
-        if (clickedIndex == 0) { // PvP
-            _GAME_MODE = 1; _GAME_STATE = 1; _IS_PAUSED = false;
-            ResetData(); _p1Moves = 0; _p2Moves = 0; _WINNER = 2;
-        }
-        else if (clickedIndex == 1) {
-            // Chế độ PvE (Bot)
-            _GAME_MODE = 2;
-            _GAME_STATE = 2;
-            _IS_PAUSED = false;
-            ResetData();
-            _p1Moves = 0;
-            _p2Moves = 0;
-            _WINNER = 2;
-        }
-        else if (clickedIndex == 2) { // File Game
-            _GAME_STATE = 3;
-        }
-        else if (clickedIndex == 3) { // Thông tin
-            _GAME_STATE = 4;
-        }
-        else if (clickedIndex == 4) { // Hướng dẫn
-            _GAME_STATE = 5;
-        }
-        else if (clickedIndex == 5) {
-            _GAME_STATE = 6;
-        }
-        else if (clickedIndex == 6) {
-            _GAME_STATE = -1;
-        }
-    }
-
-    EndDrawing();
-}
-// ==========================================================
-// 1. HÀM XỬ LÝ NHẬP PHÍM VÀ LOGIC GAME KHI ĐANG CHƠI (KHÔNG VẼ)
-// ==========================================================
-void HandleGameInput() {
-    // Bấm ESC để mở/đóng Menu tạm dừng (chỉ khi chưa ai thắng)
-    if (IsKeyPressed(KEY_ESCAPE) && _WINNER == 2) {
-        _IS_PAUSED = !_IS_PAUSED;
-        PlayPauseSfx();
-    }
-
-    // Nếu game đang chạy bình thường (chưa ai thắng và không bị Pause)
-    if (_WINNER == 2 && !_IS_PAUSED) {
-        if (_TURN == true) { // --- LƯỢT NGƯỜI CHƠI 1 (Điều khiển bằng W A S D) ---
-            int oldX = _X;
-            int oldY = _Y;
-
-            if (IsKeyPressed(KEY_W)) MoveUp();
-            if (IsKeyPressed(KEY_S)) MoveDown();
-            if (IsKeyPressed(KEY_A)) MoveLeft();
-            if (IsKeyPressed(KEY_D)) MoveRight();
-
-            if (_X != oldX || _Y != oldY) PlayBoardMoveSfx();
-
-            // Nhấn Enter để đánh cờ
-            if (IsKeyPressed(KEY_ENTER)) {
-                // CheckBoard trả về khác 0 nếu đánh thành công
-                if (CheckBoard(_X, _Y) != 0) {
-                    PlayPlaceSfx();
-                    _p1Moves++; // Tăng số bước
-                    _WINNER = TestBoard(_X, _Y); // Kiểm tra thắng thua
-                    // Nếu chưa ai thắng thì đổi lượt cho người 2/Bot
-                    if (_WINNER == 2) _TURN = !_TURN;
-                }
-            }
-        }
-        else { // --- LƯỢT NGƯỜI CHƠI 2 HOẶC MÁY ---
-            if (_GAME_MODE == 1) { // LƯỢT NGƯỜI CHƠI 2 (Điều khiển bằng Phím mũi tên)
-                int oldX = _X;
-                int oldY = _Y;
-
-                if (IsKeyPressed(KEY_UP)) MoveUp();
-                if (IsKeyPressed(KEY_DOWN)) MoveDown();
-                if (IsKeyPressed(KEY_LEFT)) MoveLeft();
-                if (IsKeyPressed(KEY_RIGHT)) MoveRight();
-
-                if (_X != oldX || _Y != oldY) PlayBoardMoveSfx();
-
-                // Dùng Numpad Enter hoặc Enter thường
-                if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) {
-                    if (CheckBoard(_X, _Y) != 0) {
-                        PlayPlaceSfx();
-                        _p2Moves++;
-                        _WINNER = TestBoard(_X, _Y);
-                        if (_WINNER == 2) _TURN = !_TURN;
-                    }
-                }
-            }
-            else if (_GAME_MODE == 2) { // LƯỢT CỦA MÁY (BOT)
-                BotMove(); // Bot tính toán và di chuyển con trỏ _X, _Y
-
-                // Đánh cờ tại vị trí Bot vừa quyết định
-                if (CheckBoard(_X, _Y) != 0) {
-                    PlayPlaceSfx();
-                    _p2Moves++;
-                    _WINNER = TestBoard(_X, _Y);
-                    if (_WINNER == 2) _TURN = !_TURN;
-                }
-            }
-        }
-    }
-}
-
-// ==========================================================
-// 2. HÀM VẼ GIAO DIỆN NỀN VÀ THÔNG SỐ (LỚP CƠ BẢN NHẤT)
-// ==========================================================
-void DrawGameUI(Texture2D background, Font gameFont) {
-    // Vẽ nền
+    // Vẽ hình nền và lớp phủ
     DrawTexturePro(background,
         Rectangle{ 0, 0, (float)background.width, (float)background.height },
         Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
         Vector2{ 0, 0 }, 0.0f, WHITE);
 
-    // Vẽ bàn cờ và các quân cờ lên trên nền
-    DrawBoardRaylib();
+    // Tiêu đề game với hiệu ứng đổ bóng
+    Vector2 titleSize = MeasureTextEx(gameFont, "GAME CỜ CARO", 90, 4);
+    Vector2 titlePos = { (float)GetScreenWidth() / 2 - titleSize.x / 2, 60 };
+    DrawTextEx(gameFont, "GAME CỜ CARO", { titlePos.x + 4, titlePos.y + 4 }, 90, 4, BLACK);
+    DrawTextEx(gameFont, "GAME CỜ CARO", titlePos, 90, 4, WHITE);
 
-    // Vẽ thông tin Người chơi 1
-    DrawTextEx(gameFont, "PLAYER 1 (X)", Vector2{ 1100, 100 }, 80, 2, RED);
-    DrawTextEx(gameFont, TextFormat("number of moves: %d", _p1Moves), Vector2{ 1100, 200 }, 40, 2, BLACK);
+    int btnWidth = 450;
+    int btnHeight = 70;
+    int startY = 180;
+    int gap = 15;
+    bool isClicked = false;
+    int clickedIndex = -1;
 
-    // Vẽ thông tin Người chơi 2 / Máy
-    if (_GAME_MODE == 1) DrawTextEx(gameFont, "PLAYER 2 (O)", Vector2{ 1100, 700 }, 80, 2, BLUE);
-    else DrawTextEx(gameFont, "COMPUTER (O)", Vector2{ 1100, 700 }, 50, 2, BLUE);
-    DrawTextEx(gameFont, TextFormat("number of moves: %d", _p2Moves), Vector2{ 1100, 800 }, 40, 2, BLACK);
+    // Vẽ các nút bấm
+    for (int i = 0; i < NUM_BUTTONS; i++) {
+        Rectangle r = {
+            (float)GetScreenWidth() / 2 - btnWidth / 2,
+            (float)(startY + i * (btnHeight + gap)),
+            (float)btnWidth,
+            (float)btnHeight
+        };
+        bool focused = (menuFocus == i);
 
-    // Vẽ thanh thông báo lượt đánh (Chỉ hiển thị khi game chưa kết thúc)
-    if (_WINNER == 2) {
-        if (_TURN) DrawTextEx(gameFont, "TURN: PLAYER 1", Vector2{ 1100, 450 }, 70, 2, RED);
-        else {
-            if (_GAME_MODE == 1) DrawTextEx(gameFont, "TURN: PLAYER 2", Vector2{ 1100, 450 }, 70, 2, BLUE);
-            else DrawTextEx(gameFont, "COMPUTER THINKING...", Vector2{ 1100, 450 }, 70, 2, BLUE);
+        if (CheckCollisionPointRec(GetMousePosition(), r)) {
+            menuFocus = i;
         }
+
+        // Vẽ nền nút bấm bo góc, không dùng viền (Modern Style)
+        float roundness = 0.2f;
+        DrawRectangleRounded(r, roundness, 0, focused ? Fade(SKYBLUE, 0.5f) : Fade(BLACK, 0.25f));
+        
+        // Hiệu ứng điểm nhấn khi focused: Thanh sáng bên trái
+        if (focused) {
+            // Thanh indicator dọc bên trái
+            DrawRectangleRounded({ r.x - 15, r.y + 5, 8, r.height - 10 }, 1.0f, 0, YELLOW);
+            // Hiệu ứng phát sáng nhẹ (Glow) lan tỏa - Sửa lỗi chữ ký hàm Raylib
+            DrawRectangleRoundedLines(r, roundness, 10, Fade(YELLOW, 0.3f));
+        }
+
+        // Vẽ chữ trên nút
+        Vector2 s = MeasureTextEx(gameFont, btnLabels[i], 35, 2);
+        DrawTextEx(gameFont, btnLabels[i],
+            Vector2{ r.x + (btnWidth - s.x) / 2, r.y + (btnHeight - s.y) / 2 },
+            35, 2, focused ? YELLOW : WHITE);
+
+        if (focused && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            isClicked = true;
+            clickedIndex = i;
+        }
+    }
+
+    // Xử lý âm thanh và lựa chọn
+    if (menuFocus != oldFocus) {
+        PlayNavigateSfx();
+    }
+
+    if (IsKeyPressed(KEY_ENTER)) {
+        isClicked = true;
+        clickedIndex = menuFocus;
+    }
+
+    if (isClicked) {
+        PlaySelectSfx();
+        switch (clickedIndex) {
+            case 0: // Chế độ Người vs Người (PvP)
+                _GAME_MODE = 1;
+                _GAME_STATE = 7;
+                _IS_PAUSED = false;
+                ResetData();
+                _p1Moves = _p2Moves = 0;
+                _WINNER = 2;
+                _ROUND = 1;
+                break;
+
+            case 1: // Chế độ Người vs Máy (PvE)
+                _GAME_MODE = 2;
+                _GAME_STATE = 2;
+                _IS_PAUSED = false;
+                ResetData();
+                _p1Moves = _p2Moves = 0;
+                _WINNER = 2;
+                _ROUND = 1;
+                break;
+
+            case 2: _GAME_STATE = 3; break; // TẢI GAME
+            case 3: _GAME_STATE = 4; break; // THÔNG TIN
+            case 4: _GAME_STATE = 5; break; // HƯỚNG DẪN
+            case 5: _GAME_STATE = 6; break; // CÀI ĐẶT
+            case 6: _GAME_STATE = -1; break; // THOÁT
+        }
+    }
+    EndDrawing();
+}
+
+// ==========================================
+// XỬ LÝ ĐIỀU KHIỂN TRONG GAME
+// ==========================================
+void HandleGameInput() {
+    if (_IS_QUICK_SAVING || _IS_QUICK_LOADING) return;
+
+    // 2. BẮT PHÍM TẮT 'L' VÀ 'T' TRONG LÚC CHƠI
+    if (_WINNER == 2 && !_IS_PAUSED) {
+        if (IsKeyPressed(KEY_L)) {
+            _IS_QUICK_SAVING = true;
+            PlaySelectSfx();
+            while (GetCharPressed() > 0) {}
+            return;
+        }
+        if (IsKeyPressed(KEY_T)) {
+            _IS_QUICK_LOADING = true;
+            PlaySelectSfx();
+            while (GetCharPressed() > 0) {}
+            return;
+        }
+    }
+    // Xử lý tạm dừng game
+    if (IsKeyPressed(KEY_ESCAPE) && _WINNER == 2) {
+        _IS_PAUSED = !_IS_PAUSED;
+        PlayPauseSfx();
+    }
+
+    if (_WINNER != 2 || _IS_PAUSED) return;
+
+    int oldX = _X;
+    int oldY = _Y;
+
+    if (_TURN) { // Lượt của Người chơi 1 (X)
+        if (IsKeyPressed(KEY_W)) MoveUp();
+        if (IsKeyPressed(KEY_S)) MoveDown();
+        if (IsKeyPressed(KEY_A)) MoveLeft();
+        if (IsKeyPressed(KEY_D)) MoveRight();
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (CheckBoard(_X, _Y) != 0) {
+                PlayPlaceSfx();
+                _p1Moves++;
+                _WINNER = TestBoard(_X, _Y);
+
+                if (_WINNER == 2) {
+                    _TURN = !_TURN;
+                    _turnTimer = (float)_turnTimeLimit;
+                }
+                else if (_WINNER == -1) {
+                    if (_GAME_MODE == 1) _p1WinsPvP++;
+                    else _p1WinsPvE++;
+                }
+                else if (_WINNER == 1) {
+                    if (_GAME_MODE == 1) _p2WinsPvP++;
+                    else _botWins++;
+                }
+            }
+        }
+    }
+    else { // Lượt của Người chơi 2 (O) hoặc Máy (Bot)
+        if (_GAME_MODE == 1) { // Chế độ Người vs Người
+            if (IsKeyPressed(KEY_UP)) MoveUp();
+            if (IsKeyPressed(KEY_DOWN)) MoveDown();
+            if (IsKeyPressed(KEY_LEFT)) MoveLeft();
+            if (IsKeyPressed(KEY_RIGHT)) MoveRight();
+
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) {
+                if (CheckBoard(_X, _Y) != 0) {
+                    PlayPlaceSfx();
+                    _p2Moves++;
+                    _WINNER = TestBoard(_X, _Y);
+
+                    if (_WINNER == 2) {
+                        _TURN = !_TURN;
+                        _turnTimer = (float)_turnTimeLimit;
+                    }
+                    else if (_WINNER == -1) {
+                        _p1WinsPvP++;
+                    }
+                    else if (_WINNER == 1) {
+                        _p2WinsPvP++;
+                    }
+                }
+            }
+        }
+        else { // Chế độ đánh với Máy (Bot)
+            BotMove();
+            if (CheckBoard(_X, _Y) != 0) {
+                PlayPlaceSfx();
+                _p2Moves++;
+                _WINNER = TestBoard(_X, _Y);
+
+                if (_WINNER == 2) {
+                    _TURN = !_TURN;
+                    _turnTimer = (float)_turnTimeLimit;
+                }
+                else if (_WINNER == -1) {
+                    _p1WinsPvE++;
+                }
+                else if (_WINNER == 1) {
+                    _botWins++;
+                }
+            }
+        }
+    }
+
+    // Phát âm thanh nếu vị trí con trỏ thay đổi
+    if (_X != oldX || _Y != oldY) {
+        PlayBoardMoveSfx();
+    }
+
+    // Logic đếm ngược thời gian lượt chơi
+    _turnTimer -= GetFrameTime();
+    if (_turnTimer <= 0) {
+        _turnTimer = 0;
+        _WINNER = _TURN ? 1 : -1;
+
+        if (_WINNER == -1) {
+            if (_GAME_MODE == 1) _p1WinsPvP++;
+            else _p1WinsPvE++;
+        }
+        else {
+            if (_GAME_MODE == 1) _p2WinsPvP++;
+            else _botWins++;
+        }
+        PlayLoseSfx();
     }
 }
 
-// ==========================================================
-// 3. HÀM XỬ LÝ VÀ VẼ BẢNG GAME OVER (LỚP PHỦ SỐ 1)
-// ==========================================================
+static Texture2D _FIRE_CHARIZARD, _FIRE_GROUDON, _WATER_KYOGRE, _WATER_GYARADOS;
+static bool _DECOR_LOADED = false;
+
+// ==========================================
+// TÀI NGUYÊN TRANG TRÍ
+// ==========================================
+void LoadDecorTextures() {
+    if (_DECOR_LOADED) return;
+
+    _FIRE_CHARIZARD = LoadTexture("assets/images/pokemon/6.png");
+    _FIRE_GROUDON = LoadTexture("assets/images/pokemon/383.png");
+    _WATER_KYOGRE = LoadTexture("assets/images/pokemon/382.png");
+    _WATER_GYARADOS = LoadTexture("assets/images/pokemon/10041.png");
+
+    SetTextureFilter(_FIRE_CHARIZARD, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(_FIRE_GROUDON, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(_WATER_KYOGRE, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(_WATER_GYARADOS, TEXTURE_FILTER_BILINEAR);
+
+    _DECOR_LOADED = true;
+}
+
+// ==========================================
+// GIAO DIỆN CHÍNH TRONG GAME
+// ==========================================
+void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
+    LoadDecorTextures();
+
+    // Vẽ màu nền Gradient cho 2 bên
+    // Khôi phục lại nền cũ theo ý bạn
+    DrawRectangleGradientH(0, 0, GetScreenWidth() / 2, GetScreenHeight(), Color{ 255, 140, 0, 255 }, Color{ 215, 38, 0, 255 });
+    DrawRectangleGradientH(GetScreenWidth() / 2, 0, GetScreenWidth() / 2, GetScreenHeight(), Color{ 0, 68, 129, 255 }, Color{ 0, 191, 255, 255 });
+
+    // Vẽ khung cho bàn cờ
+    DrawRectangle(LEFT - 20, TOP - 20, BOARD_SIZE * CELL_SIZE + 40, BOARD_SIZE * CELL_SIZE + 40, Fade(WHITE, 0.95f));
+
+    Color cBC = _TURN ? RED : BLUE;
+    DrawRectangleLinesEx(Rectangle{ (float)LEFT - 20, (float)TOP - 20, (float)BOARD_SIZE * CELL_SIZE + 40, (float)BOARD_SIZE * CELL_SIZE + 40 }, 10, cBC);
+
+    // Hiển thị thông tin vòng đấu (Round)
+    DrawTextEx(gameFont, TextFormat("ROUND %d", _ROUND), Vector2{ (float)GetScreenWidth() / 2 - 102, 22 }, 50, 2, BLACK);
+    DrawTextEx(gameFont, TextFormat("ROUND %d", _ROUND), Vector2{ (float)GetScreenWidth() / 2 - 100, 20 }, 50, 2, WHITE);
+
+    DrawBoardRaylib(pieceFont);
+    LoadPokemonTextures();
+
+    int cW = 320;
+    int cH = 550;
+    int cY = 225; // (1000 - 550) / 2
+    int p1X = 130; // (585 - 320) / 2
+    int p2X = 1470; // 1335 + (585 - 320) / 2
+
+    // --- BẢNG THÔNG TIN NGƯỜI CHƠI 1 ---
+    DrawRectangle(p1X, cY, cW, cH, Fade(WHITE, 0.85f));
+    DrawRectangleLinesEx(Rectangle{ (float)p1X, (float)cY, (float)cW, (float)cH }, (_TURN && _WINNER == 2) ? 8 : 4, RED);
+
+    DrawTextEx(gameFont, _P1_NAME,
+        Vector2{ (float)p1X + cW / 2 - MeasureTextEx(gameFont, _P1_NAME, 35, 2).x / 2, (float)cY + 25 },
+        35, 2, RED);
+    DrawTextEx(gameFont, "Người chơi X",
+        Vector2{ (float)p1X + cW / 2 - MeasureTextEx(gameFont, "Người chơi X", 20, 2).x / 2, (float)cY + 65 },
+        20, 2, DARKGRAY);
+
+    DrawLine(p1X + 30, cY + 100, p1X + cW - 30, cY + 100, LIGHTGRAY);
+    DrawTexturePro(_POKEMON_TEXTURES[_P1_POKEMON],
+        { 0, 0, (float)_POKEMON_TEXTURES[_P1_POKEMON].width, (float)_POKEMON_TEXTURES[_P1_POKEMON].height },
+        { (float)p1X + 45, (float)cY + 120, 230, 230 }, { 0, 0 }, 0.0f, WHITE);
+    DrawLine(p1X + 30, cY + 370, p1X + cW - 30, cY + 370, LIGHTGRAY);
+
+    int dP1W = (_GAME_MODE == 1) ? _p1WinsPvP : _p1WinsPvE;
+    DrawTextEx(gameFont, TextFormat("Số lần thắng : %d", dP1W), { (float)p1X + 50, (float)cY + 385 }, 30, 2, Color{ 180, 0, 0, 255 });
+    DrawTextEx(gameFont, TextFormat("Số nước đi: %d", _p1Moves), { (float)p1X + 50, (float)cY + 435 }, 30, 2, Color{ 180, 0, 0, 255 });
+    DrawTextEx(gameFont, "Thời gian :", Vector2{ (float)p1X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
+
+    if (_TURN && _WINNER == 2) {
+        DrawTextEx(gameFont, TextFormat("%02d s", (int)ceilf(_turnTimer)),
+            { (float)p1X + 220, (float)cY + 480 },
+            40, 2, (_turnTimer <= 5) ? RED : Color{ 180, 0, 0, 255 });
+    }
+
+    // --- BẢNG THÔNG TIN NGƯỜI CHƠI 2 ---
+    DrawRectangle(p2X, cY, cW, cH, Fade(WHITE, 0.85f));
+    DrawRectangleLinesEx(Rectangle{ (float)p2X, (float)cY, (float)cW, (float)cH }, (!_TURN && _WINNER == 2) ? 8 : 4, BLUE);
+
+    const char* p2n = (_GAME_MODE == 1) ? _P2_NAME : "Máy";
+    DrawTextEx(gameFont, p2n,
+        Vector2{ (float)p2X + cW / 2 - MeasureTextEx(gameFont, p2n, 35, 2).x / 2, (float)cY + 25 },
+        35, 2, BLUE);
+
+    const char* sub2 = (_GAME_MODE == 1) ? "Người chơi O" : "BOT O";
+    DrawTextEx(gameFont, sub2,
+        Vector2{ (float)p2X + cW / 2 - MeasureTextEx(gameFont, sub2, 20, 2).x / 2, (float)cY + 65 },
+        20, 2, DARKGRAY);
+
+    DrawLine(p2X + 30, cY + 100, p2X + cW - 30, cY + 100, LIGHTGRAY);
+    DrawTexturePro(_POKEMON_TEXTURES[_P2_POKEMON],
+        { 0, 0, (float)_POKEMON_TEXTURES[_P2_POKEMON].width, (float)_POKEMON_TEXTURES[_P2_POKEMON].height },
+        { (float)p2X + 45, (float)cY + 120, 230, 230 }, { 0, 0 }, 0.0f, WHITE);
+    DrawLine(p2X + 30, cY + 370, p2X + cW - 30, cY + 370, LIGHTGRAY);
+
+    int dP2W = (_GAME_MODE == 1) ? _p2WinsPvP : _botWins;
+    DrawTextEx(gameFont, TextFormat("Số lần thắng : %d", dP2W), { (float)p2X + 50, (float)cY + 385 }, 30, 2, Color{ 0, 68, 129, 255 });
+    DrawTextEx(gameFont, TextFormat("Số nước đi: %d", _p2Moves), { (float)p2X + 50, (float)cY + 435 }, 30, 2, Color{ 0, 68, 129, 255 });
+    DrawTextEx(gameFont, "Thời gian :", Vector2{ (float)p2X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
+
+    if (!_TURN && _WINNER == 2) {
+        DrawTextEx(gameFont, TextFormat("%02d s", (int)ceilf(_turnTimer)),
+            { (float)p2X + 160, (float)cY + 480 },
+            40, 2, (_turnTimer <= 5) ? RED : Color{ 0, 68, 129, 255 });
+    }
+}
+
+// ==========================================
+// MÀN HÌNH KẾT THÚC GAME (GAME OVER)
+// ==========================================
 void DrawAndHandleGameOver(Font gameFont) {
-    if (_WINNER == 2) return; // Nếu game chưa kết thúc thì bỏ qua hàm này
+    if (_WINNER == 2) return;
 
-    static int gameOverFocus = 0; // 0: Nút Play Again, 1: Nút Menu
-    int oldFocus = gameOverFocus;
-    static int waitTimer = 0;
-    waitTimer++;
-    // Nhận phím điều hướng trái phải
-    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) gameOverFocus = 0;
-    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) gameOverFocus = 1;
+    static int gFocus = 0;
+    static int waitT = 0;
+    waitT++;
 
-    if (gameOverFocus != oldFocus) PlayNavigateSfx();
+    // Logic điều hướng bằng phím bấm
+    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) gFocus = 0;
+    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) gFocus = 1;
 
-    // Phủ một lớp màu đen mờ lên toàn bộ màn hình game
+    // Lớp phủ nền mờ
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.4f));
 
-    // Tính toán vị trí xuất hiện của Hộp thoại Game End (Nằm giữa màn hình)
-    int boxWidth = 800; int boxHeight = 400;
-    int boxX = (GetScreenWidth() - boxWidth) / 2;
-    int boxY = (GetScreenHeight() - boxHeight) / 2;
+    // Kích thước và tọa độ hộp thoại
+    int bW = 800;
+    int bH = 400;
+    int bX = (GetScreenWidth() - bW) / 2;
+    int bY = (GetScreenHeight() - bH) / 2;
 
-    // Vẽ hộp thoại Game Over
-    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(RAYWHITE, 0.3f));
-    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 5, DARKGRAY);
-    DrawTextEx(gameFont, "GAME END!", Vector2{ (float)boxX + 200, (float)boxY + 50 }, 80, 2, DARKGRAY);
+    // Vẽ hộp thoại thông báo bo góc (Modern style)
+    float roundness = 0.1f;
+    DrawRectangleRounded({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(RAYWHITE, 0.95f));
+    DrawRectangleRoundedLines({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(DARKGRAY, 0.5f));
 
-    // In ra kết quả trận đấu
-    if (_WINNER == -1) DrawTextEx(gameFont, "PLAYER 1 (X) WIN!", Vector2{ (float)boxX + 150, (float)boxY + 150 }, 55, 2, RED);
-    else if (_WINNER == 1) DrawTextEx(gameFont, (_GAME_MODE == 1) ? "PLAYER 2 (O) WIN!" : "COMPUTER WIN!", Vector2{ (float)boxX + 200, (float)boxY + 150 }, 55, 2, BLUE);
-    else if (_WINNER == 0) DrawTextEx(gameFont, "DRAW!", Vector2{ (float)boxX + 180, (float)boxY + 150 }, 55, 2, DARKGRAY);
+    // Hiển thị thông báo người chiến thắng
+    const char* rT = (_WINNER == 0) ? "HÒA CỜ!" :
+        (_WINNER == -1 ? "Người chơi X THẮNG!" :
+        (_GAME_MODE == 1 ? "Người chơi O THẮNG!" : "MÁY THẮNG!"));
+    Color rC = (_WINNER == 0) ? DARKGRAY : (_WINNER == -1 ? RED : BLUE);
+    DrawTextEx(gameFont, rT,
+        { (float)bX + (bW - MeasureTextEx(gameFont, rT, 55, 2).x) / 2, (float)bY + 80 },
+        55, 2, rC);
 
-    // Tạo 2 nút bấm
-    Rectangle btnPlayAgain = { (float)boxX + 100, (float)boxY + 280, 280, 80 };
-    Rectangle btnMenu = { (float)boxX + 420, (float)boxY + 280, 280, 80 };
-
-    // Cập nhật focus bằng chuột
-    bool mouseOnPlay = CheckCollisionPointRec(GetMousePosition(), btnPlayAgain);
-    bool mouseOnMenu = CheckCollisionPointRec(GetMousePosition(), btnMenu);
-    if (mouseOnPlay) gameOverFocus = 0;
-    if (mouseOnMenu) gameOverFocus = 1;
-
-    bool isHoverPlay = (gameOverFocus == 0);
-    bool isHoverMenu = (gameOverFocus == 1);
-
-    // Vẽ nút "PLAY AGAIN"
-    DrawRectangleRec(btnPlayAgain, isHoverPlay ? DARKGRAY : LIGHTGRAY); DrawRectangleLinesEx(btnPlayAgain, 3, BLACK);
-    DrawTextEx(gameFont, "PLAY AGAIN", Vector2{ btnPlayAgain.x + 40, btnPlayAgain.y + 20 }, 45, 2, isHoverPlay ? WHITE : BLACK);
-
-    // Vẽ nút "MENU"
-    DrawRectangleRec(btnMenu, isHoverMenu ? DARKGRAY : LIGHTGRAY); DrawRectangleLinesEx(btnMenu, 3, BLACK);
-    DrawTextEx(gameFont, "MENU", Vector2{ btnMenu.x + 50, btnMenu.y + 20 }, 45, 2, isHoverMenu ? WHITE : BLACK);
-
-    // Xử lý khi nhấn nút
-    if (waitTimer > 30) {
-        if (IsKeyPressed(KEY_ENTER) || (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && (mouseOnPlay || mouseOnMenu))) {
-            PlaySelectSfx();
-
-            if (gameOverFocus == 0) {
-                int currentMode = _GAME_MODE;
-                ResetData();
-                _p1Moves = 0; _p2Moves = 0; _WINNER = 2;
-                _GAME_MODE = currentMode;
-                gameOverFocus = 0;
-
-                waitTimer = 0; // Trả lại timer về 0 cho ván sau
-            }
-            else if (gameOverFocus == 1) {
-                _GAME_STATE = 0;
-
-                waitTimer = 0; // Trả lại timer về 0
-            }
+    // Hàm hỗ trợ vẽ nút bấm bo góc hiện đại
+    auto DB = [&](Rectangle r, const char* t, bool h) {
+        float rR = 0.3f;
+        DrawRectangleRounded(r, rR, 10, h ? Fade(SKYBLUE, 0.6f) : Fade(LIGHTGRAY, 0.8f));
+        if (h) {
+            DrawRectangleRoundedLines(r, rR, 10, YELLOW);
+            // Indicator nhỏ phía dưới nút
+            DrawRectangleRounded({ r.x + 20, r.y + r.height - 8, r.width - 40, 5 }, 1.0f, 0, YELLOW);
         }
-    }
-}
-
-// ==========================================================
-// 4. HÀM XỬ LÝ VÀ VẼ BẢNG TẠM DỪNG (LỚP PHỦ SỐ 2)
-// ==========================================================
-void DrawAndHandlePauseMenu(Font gameFont) {
-    if (!_IS_PAUSED || _WINNER != 2) return; // Không pause thì thoát hàm
-
-    const int NUM_BUTTONS = 4;
-    static int pauseFocus = 0;
-    int oldFocus = pauseFocus;
-
-    // Mảng tên 4 nút chính
-    const char* btnLabels[NUM_BUTTONS] = {
-        "TIEP TUC",
-        "CAI DAT",
-        "LUU GAME",
-        "VE MENU",
+        DrawTextEx(gameFont, t,
+            { r.x + (r.width - MeasureTextEx(gameFont, t, 45, 2).x) / 2,
+              r.y + (r.height - MeasureTextEx(gameFont, t, 45, 2).y) / 2 },
+            45, 2, h ? WHITE : BLACK);
     };
 
-    // Các biến phục vụ việc gõ tên file lưu
-    static bool isTypingSave = false;
-    static char saveName[50] = "\0";
-    static int nameCount = 0;
+    Rectangle bPA = { (float)bX + 100, (float)bY + 260, 280, 80 };
+    Rectangle bM = { (float)bX + 420, (float)bY + 260, 280, 80 };
 
-    // CÁC BIẾN PHỤC VỤ BẢNG CÀI ĐẶT MINI
-    static bool isSettings = false;
-    static int setFocus = 0;
-    int oldSetFocus = setFocus;
-    bool justExitedSettings = false;
-    // ==========================================
-    // LOGIC NHẬN BÀN PHÍM & XỬ LÝ DỮ LIỆU
-    // ==========================================
-    if (isSettings) {
-        // --- LOGIC TRONG MÀN HÌNH CÀI ĐẶT MINI ---
-        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) setFocus = (setFocus - 1 + 4) % 4;
-        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) setFocus = (setFocus + 1) % 4;
+    // Xử lý chọn bằng chuột
+    if (CheckCollisionPointRec(GetMousePosition(), bPA)) gFocus = 0;
+    if (CheckCollisionPointRec(GetMousePosition(), bM)) gFocus = 1;
 
-        if (setFocus != oldSetFocus) PlayNavigateSfx();
+    DB(bPA, "CHƠI LẠI", gFocus == 0);
+    DB(bM, "MENU", gFocus == 1);
 
-        if (setFocus == 0 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
-            _BGM_ON = !_BGM_ON; PlaySelectSfx();
-        }
-        if (setFocus == 1 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
-            _SFX_ON = !_SFX_ON; PlaySelectSfx();
-        }
-        if (setFocus == 2) {
-            if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
-                _MASTER_VOL -= 0.1f; if (_MASTER_VOL < 0.0f) _MASTER_VOL = 0.0f;
-                SetMasterVolume(_MASTER_VOL); PlaySelectSfx();
-            }
-            if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
-                _MASTER_VOL += 0.1f; if (_MASTER_VOL > 1.0f) _MASTER_VOL = 1.0f;
-                SetMasterVolume(_MASTER_VOL); PlaySelectSfx();
-            }
-        }
-        if ((setFocus == 3 && IsKeyPressed(KEY_ENTER)) || IsKeyPressed(KEY_ESCAPE)) {
-            isSettings = false; // Thoát bảng cài đặt mini
-            justExitedSettings = true;
+    // Xử lý xác nhận lựa chọn
+    if (waitT > 30) {
+        bool enterPressed = IsKeyPressed(KEY_ENTER);
+        bool mouseClicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
+            (CheckCollisionPointRec(GetMousePosition(), bPA) || CheckCollisionPointRec(GetMousePosition(), bM));
+
+        if (enterPressed || mouseClicked) {
             PlaySelectSfx();
-        }
-    }
-    else if (isTypingSave) {
-        // --- LOGIC GÕ TÊN FILE LƯU GAME ---
-        int key = GetCharPressed();
-        while (key > 0) {
-            if ((key >= 32) && (key <= 125) && (nameCount < 40)) {
-                saveName[nameCount] = (char)key;
-                saveName[nameCount + 1] = '\0';
-                nameCount++;
+            if (gFocus == 0) {
+                int m = _GAME_MODE;
+                ResetData();
+                _GAME_MODE = m;
+                _p1Moves = _p2Moves = 0;
+                _WINNER = 2;
+                _IS_PAUSED = false; 
+                _ROUND++;
             }
-            key = GetCharPressed();
-        }
-        if (IsKeyPressed(KEY_BACKSPACE) && nameCount > 0) {
-            nameCount--; saveName[nameCount] = '\0';
-        }
-        if (IsKeyPressed(KEY_ENTER) && nameCount > 0) {
-            std::string fileName = std::string(saveName) + ".sav";
-            PlaySelectSfx();
-            SaveGame(fileName);
-            isTypingSave = false;
-            _IS_PAUSED = false;
-        }
-        if (IsKeyPressed(KEY_ESCAPE)) {
-            isTypingSave = false;
-            PlaySelectSfx();
-        }
-    }
-    else {
-        // --- LOGIC MÀN HÌNH PAUSE CHÍNH ---
-        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) pauseFocus = (pauseFocus - 1 + NUM_BUTTONS) % NUM_BUTTONS;
-        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) pauseFocus = (pauseFocus + 1) % NUM_BUTTONS;
-
-        if (pauseFocus != oldFocus) PlayNavigateSfx();
-    }
-
-    // ==========================================
-    // VẼ GIAO DIỆN CHUNG (LỚP MỜ VÀ CÁI HỘP)
-    // ==========================================
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.7f));
-
-    // Điều chỉnh kích thước hộp linh hoạt theo từng trạng thái
-    int boxWidth = isSettings ? 600 : 500;
-    int boxHeight = isTypingSave ? 300 : (isSettings ? 500 : 550);
-    int boxX = (GetScreenWidth() - boxWidth) / 2;
-    int boxY = (GetScreenHeight() - boxHeight) / 2;
-
-    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(RAYWHITE, 0.95f));
-    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 5, DARKGRAY);
-
-    // ==========================================
-    // VẼ NỘI DUNG BÊN TRONG HỘP
-    // ==========================================
-    if (isSettings) {
-        // ---- GIAO DIỆN BẢNG CÀI ĐẶT MINI ----
-        DrawTextEx(gameFont, "CAI DAT", Vector2{ (float)boxX + 210, (float)boxY + 30 }, 55, 2, DARKGRAY);
-        DrawText("A/D (Trai/Phai) de dieu chinh", boxX + 180, boxY + 100, 18, GREEN);
-
-        int btnWidth = 500;
-        int btnHeight = 60;
-        int startX = boxX + 50;
-        int startY = boxY + 140;
-        int gap = 80;
-
-        for (int i = 0; i < 4; i++) {
-            Rectangle btnRec = { (float)startX, (float)(startY + i * gap), (float)btnWidth, (float)btnHeight };
-            bool isHover = (setFocus == i);
-
-            if (CheckCollisionPointRec(GetMousePosition(), btnRec)) {
-                setFocus = i;
-                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                    if (i == 0) { 
-                        _BGM_ON = !_BGM_ON; 
-                        PlaySelectSfx(); 
-                    }
-                    if (i == 1) { 
-                        _SFX_ON = !_SFX_ON; 
-                        PlaySelectSfx(); 
-                    }
-                    if (i == 3) { 
-                        isSettings = false; 
-                        justExitedSettings = true; 
-                        PlaySelectSfx(); 
-                    }
-                }
-            }
-
-            DrawRectangleRec(btnRec, isHover ? DARKGRAY : LIGHTGRAY);
-            DrawRectangleLinesEx(btnRec, isHover ? 4.0f : 2.0f, BLACK);
-
-            // Chữ nhỏ lại một chút (size 35) để vừa với hộp
-            if (i == 0) {
-                DrawTextEx(gameFont, "NHAC NEN:", Vector2{ btnRec.x + 20, btnRec.y + 15 }, 35, 2, isHover ? WHITE : BLACK);
-                DrawTextEx(gameFont, _BGM_ON ? "[ BAT ]" : "[ TAT ]", Vector2{ btnRec.x + 350, btnRec.y + 15 }, 35, 2, _BGM_ON ? GREEN : RED);
-            }
-            else if (i == 1) {
-                DrawTextEx(gameFont, "HIEU UNG:", Vector2{ btnRec.x + 20, btnRec.y + 15 }, 35, 2, isHover ? WHITE : BLACK);
-                DrawTextEx(gameFont, _SFX_ON ? "[ BAT ]" : "[ TAT ]", Vector2{ btnRec.x + 350, btnRec.y + 15 }, 35, 2, _SFX_ON ? GREEN : RED);
-            }
-            else if (i == 2) {
-                DrawTextEx(gameFont, "AM LUONG:", Vector2{ btnRec.x + 20, btnRec.y + 15 }, 35, 2, isHover ? WHITE : BLACK);
-                int volPercent = (int)(_MASTER_VOL * 100 + 0.5f);
-                DrawTextEx(gameFont, TextFormat("< %d%% >", volPercent), Vector2{ btnRec.x + 330, btnRec.y + 15 }, 35, 2, isHover ? YELLOW : BLACK);
-            }
-            else if (i == 3) {
-                DrawTextEx(gameFont, "QUAY LAI", Vector2{ btnRec.x + 180, btnRec.y + 15 }, 35, 2, isHover ? WHITE : BLACK);
-            }
-        }
-    }
-    else if (isTypingSave) {
-        // ---- GIAO DIỆN KHUNG NHẬP CHỮ LƯU GAME ----
-        DrawTextEx(gameFont, "NHAP TEN FILE:", Vector2{ (float)boxX + 50, (float)boxY + 50 }, 50, 2, DARKGRAY);
-        DrawRectangle(boxX + 40, boxY + 130, 420, 60, LIGHTGRAY);
-        DrawTextEx(gameFont, saveName, Vector2{ (float)boxX + 50, (float)boxY + 140 }, 40, 2, RED);
-        if (((int)(GetTime() * 2)) % 2 == 0) DrawText("_", boxX + 50 + MeasureText(saveName, 40), boxY + 140, 40, RED);
-        DrawText("ENTER: Luu file | ESC: Huy bo", boxX + 90, boxY + 220, 20, DARKGRAY);
-    }
-    else {
-        // ---- GIAO DIỆN 4 NÚT MENU PAUSE CHÍNH ----
-        DrawTextEx(gameFont, "TAM DUNG", Vector2{ (float)boxX + 110, (float)boxY + 40 }, 65, 2, DARKGRAY);
-
-        int btnWidth = 360;
-        int btnHeight = 70;
-        int startX = boxX + (boxWidth - btnWidth) / 2;
-        int startY = boxY + 140;
-        int gap = 90;
-
-        bool isClicked = false;
-        int clickedIndex = -1;
-
-        for (int i = 0; i < NUM_BUTTONS; i++) {
-            Rectangle btnRec = { (float)startX, (float)(startY + i * gap), (float)btnWidth, (float)btnHeight };
-
-            if (CheckCollisionPointRec(GetMousePosition(), btnRec)) {
-                pauseFocus = i;
-                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                    isClicked = true;
-                    clickedIndex = i;
-                }
-            }
-
-            bool isHover = (pauseFocus == i);
-            DrawRectangleRec(btnRec, isHover ? DARKGRAY : LIGHTGRAY);
-            DrawRectangleLinesEx(btnRec, isHover ? 5.0f : 3.0f, BLACK);
-
-            Vector2 textSize = MeasureTextEx(gameFont, btnLabels[i], 45, 2);
-            DrawTextEx(gameFont, btnLabels[i], Vector2{ btnRec.x + (btnWidth - textSize.x) / 2, btnRec.y + (btnHeight - textSize.y) / 2 }, 45, 2, isHover ? WHITE : BLACK);
-        }
-
-        if (IsKeyPressed(KEY_ENTER) && !justExitedSettings) {
-            isClicked = true;
-            clickedIndex = pauseFocus;
-        }
-
-        // XỬ LÝ SAU KHI CLICK NÚT TRONG PAUSE MENU
-        if (isClicked) {
-            PlaySelectSfx();
-            if (clickedIndex == 0) {
-                _IS_PAUSED = false;       // Tiếp tục game
-            }
-            else if (clickedIndex == 1) {
-                isSettings = true;        // MỞ BẢNG CÀI ĐẶT MINI
-                setFocus = 0;
-            }
-            else if (clickedIndex == 2) {
-                isTypingSave = true;      // Mở bảng nhập tên Save
-                saveName[0] = '\0';
-                nameCount = 0;
-            }
-            else if (clickedIndex == 3) {
-                _GAME_STATE = 0;          // Về menu chính
+            else {
+                _GAME_STATE = 0;
                 _IS_PAUSED = false;
+                _ROUND = 1;
             }
+            waitT = 0;
         }
     }
 }
 
-//Hàm vẽ hướng dẫn
+// ==========================================
+// MÀN HÌNH TẠM DỪNG (PAUSE MENU)
+// ==========================================
+void DrawAndHandlePauseMenu(Font gameFont) {
+    if (!_IS_PAUSED || _WINNER != 2) return;
+
+    static int pFocus = 0;
+    static int sFocus = 0;
+    static int nC = 0;
+    static bool isS = false; // Menu cài đặt con
+    static bool isT = false; // Menu lưu game con
+    static char sN[51] = "\0";
+
+    // --- LOGIC XỬ LÝ ĐIỀU KHIỂN ---
+    if (isS) { // Logic cho Menu cài đặt con
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) sFocus = (sFocus + 4) % 5;
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) sFocus = (sFocus + 1) % 5;
+
+        if (sFocus == 0 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D))) {
+            _BGM_ON = !_BGM_ON;
+            PlaySelectSfx();
+        }
+        if (sFocus == 1 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D))) {
+            _SFX_ON = !_SFX_ON;
+            PlaySelectSfx();
+        }
+        if (sFocus == 2) {
+            if (IsKeyPressed(KEY_A)) {
+                _MASTER_VOL = fmaxf(0, _MASTER_VOL - 0.1f);
+                SetMasterVolume(_MASTER_VOL);
+            }
+            if (IsKeyPressed(KEY_D)) {
+                _MASTER_VOL = fminf(1, _MASTER_VOL + 0.1f);
+                SetMasterVolume(_MASTER_VOL);
+            }
+        }
+        if (sFocus == 3 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D))) {
+            _turnTimeLimit = (_turnTimeLimit == 15 ? 30 : (_turnTimeLimit == 30 ? 60 : 15));
+            _turnTimer = (float)_turnTimeLimit;
+            PlaySelectSfx();
+        }
+        if ((sFocus == 4 && IsKeyPressed(KEY_ENTER)) || IsKeyPressed(KEY_ESCAPE)) {
+            isS = false;
+            PlaySelectSfx();
+        }
+    }
+    else if (isT) { // Logic cho Menu Lưu game con (Nhập liệu văn bản)
+        int k = GetCharPressed();
+        while (k > 0) {
+            if (k >= 32 && k <= 125 && nC < 40) {
+                sN[nC++] = (char)k;
+                sN[nC] = '\0';
+            }
+            k = GetCharPressed();
+        }
+
+        if (IsKeyPressed(KEY_BACKSPACE) && nC > 0) {
+            sN[--nC] = '\0';
+        }
+
+        if (IsKeyPressed(KEY_ENTER) && nC > 0) {
+            SaveGame(std::string(sN) + ".sav");
+            isT = _IS_PAUSED = false;
+            PlaySelectSfx();
+        }
+
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            isT = false;
+            PlaySelectSfx();
+        }
+    }
+    else { // Logic cho Menu Tạm dừng chính
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) pFocus = (pFocus + 3) % 4;
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) pFocus = (pFocus + 1) % 4;
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            PlaySelectSfx();
+            if (pFocus == 0) {
+                _IS_PAUSED = false;
+            }
+            else if (pFocus == 1) {
+                isS = true;
+            }
+            else if (pFocus == 2) {
+                isT = true;
+                nC = 0;
+                sN[0] = '\0';
+            }
+            else {
+                _GAME_STATE = 0;
+                _IS_PAUSED = false;
+                isS = false;
+                isT = false;
+                pFocus = 0;
+            }
+        }
+    }
+
+    // --- VẼ GIAO DIỆN ---
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.45f));
+
+    int bW = isS ? 600 : 500;
+    int bH = isT ? 350 : 550;
+    int bX = (GetScreenWidth() - bW) / 2;
+    int bY = (GetScreenHeight() - bH) / 2;
+
+    float roundness = 0.1f;
+    DrawRectangleRounded({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(RAYWHITE, 0.98f));
+    DrawRectangleRoundedLines({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(DARKGRAY, 0.5f));
+
+    if (isS) { // --- GIAO DIỆN MENU CÀI ĐẶT CON NÂNG CẤP ---
+        DrawTextEx(gameFont, "CÀI ĐẶT",
+            { (float)bX + (bW - MeasureTextEx(gameFont, "CÀI ĐẶT", 45, 2).x) / 2, (float)bY + 40 },
+            45, 2, RED);
+
+        const char* opts[] = { "NHẠC NỀN", "ÂM THANH", "ÂM LƯỢNG", "THỜI GIAN", "QUAY LẠI" };
+        int gapS = 75;
+
+        for (int i = 0; i < 5; i++) {
+            Rectangle r = { (float)bX + 50, (float)bY + 110 + i * gapS, (float)bW - 100, 65 };
+            bool h = (sFocus == i);
+            float rR = 0.2f;
+
+            // Vẽ nền nút
+            DrawRectangleRounded(r, rR, 10, h ? Fade(SKYBLUE, 0.5f) : Fade(BLACK, 0.1f));
+            if (h) {
+                DrawRectangleRoundedLines(r, rR, 10, YELLOW);
+                DrawRectangleRounded({ r.x - 12, r.y + 10, 6, r.height - 20 }, 1.0f, 0, YELLOW);
+            }
+
+            // Vẽ tên mục cài đặt
+            DrawTextEx(gameFont, opts[i], { r.x + 20, r.y + 18 }, 30, 2, h ? YELLOW : BLACK);
+
+            // Vẽ giá trị/trạng thái
+            if (i == 0) {
+                const char* t = _BGM_ON ? "BẬT" : "TẮT";
+                Color c = _BGM_ON ? GREEN : RED;
+                DrawTextEx(gameFont, t, { r.x + r.width - 80, r.y + 18 }, 30, 2, c);
+            }
+            else if (i == 1) {
+                const char* t = _SFX_ON ? "BẬT" : "TẮT";
+                Color c = _SFX_ON ? GREEN : RED;
+                DrawTextEx(gameFont, t, { r.x + r.width - 80, r.y + 18 }, 30, 2, c);
+            }
+            else if (i == 2) {
+                int vol = (int)(_MASTER_VOL * 100 + 0.5f);
+                DrawTextEx(gameFont, TextFormat("%d%%", vol), { r.x + r.width - 100, r.y + 18 }, 30, 2, h ? YELLOW : DARKGRAY);
+            }
+            else if (i == 3) {
+                DrawTextEx(gameFont, TextFormat("%ds", _turnTimeLimit), { r.x + r.width - 80, r.y + 18 }, 30, 2, h ? YELLOW : DARKGRAY);
+            }
+        }
+    }
+    else if (isT) { // --- GIAO DIỆN MENU LƯU GAME CON ---
+        DrawTextEx(gameFont, "LƯU TRẠNG THÁI",
+            { (float)bX + (bW - MeasureTextEx(gameFont, "LƯU TRẠNG THÁI", 40, 2).x) / 2, (float)bY + 40 },
+            40, 2, BLACK);
+
+        DrawTextEx(gameFont, "NHẬP TÊN FILE:", { (float)bX + 50, (float)bY + 120 }, 30, 2, DARKGRAY);
+
+        Rectangle r = { (float)bX + 50, (float)bY + 160, (float)bW - 100, 70 };
+        DrawRectangleRec(r, WHITE);
+        DrawRectangleLinesEx(r, 2, BLACK);
+        DrawTextEx(gameFont, sN, { r.x + 20, r.y + 15 }, 40, 2, RED);
+
+        const char* hint = "Nhấn ENTER để lưu, ESC để hủy";
+        DrawTextEx(gameFont, hint,
+            { (float)bX + (bW - MeasureTextEx(gameFont, hint, 25, 2).x) / 2, (float)bY + 270 },
+            25, 2, DARKGRAY);
+    }
+    else { // --- GIAO DIỆN MENU TẠM DỪNG CHÍNH ---
+        DrawTextEx(gameFont, "TẠM DỪNG",
+            { (float)bX + (bW - MeasureTextEx(gameFont, "TẠM DỪNG", 50, 2).x) / 2, (float)bY + 50 },
+            50, 2, RED);
+
+        const char* menuOpts[] = { "TIẾP TỤC", "CÀI ĐẶT", "LƯU GAME", "MENU CHÍNH" };
+        for (int i = 0; i < 4; i++) {
+            Rectangle r = { (float)bX + 75, (float)bY + 150 + i * 90, (float)bW - 150, 70 };
+            bool h = (pFocus == i);
+            float rR = 0.2f;
+
+            DrawRectangleRounded(r, rR, 10, h ? Fade(SKYBLUE, 0.6f) : Fade(LIGHTGRAY, 0.8f));
+            if (h) {
+                DrawRectangleRoundedLines(r, rR, 10, YELLOW);
+                DrawRectangleRounded({ r.x - 10, r.y + 10, 6, r.height - 20 }, 1.0f, 0, YELLOW); // Indicator
+            }
+
+            DrawTextEx(gameFont, menuOpts[i],
+                { r.x + (r.width - MeasureTextEx(gameFont, menuOpts[i], 35, 2).x) / 2, r.y + 17 },
+                35, 2, h ? WHITE : BLACK);
+        }
+    }
+}
+
+// ==========================================
+// MÀN HÌNH HƯỚNG DẪN
+// ==========================================
 void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font gameFont) {
-    // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
         PlaySelectSfx();
         _GAME_STATE = 0;
     }
 
     BeginDrawing();
-    ClearBackground(RAYWHITE);
 
-    // 1. Vẽ ảnh nền Menu ở dưới cùng
-    DrawTexturePro(background, Rectangle{ 0, 0, (float)background.width, (float)background.height }, Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2{ 0, 0 }, 0.0f, WHITE);
-
-    // 2. Phủ lớp đen mờ 60%
+    // Background
+    DrawTexturePro(background,
+        { 0, 0, (float)background.width, (float)background.height },
+        { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
+        { 0, 0 }, 0.0f, WHITE);
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.6f));
 
-    // 3. Vẽ bức ảnh Hướng dẫn vào chính giữa màn hình
-    int imgX = (GetScreenWidth() - huongdanImg.width) / 2;
-    int imgY = (GetScreenHeight() - huongdanImg.height) / 2 -20;
-    DrawTexture(huongdanImg, imgX, imgY, WHITE);
+    // Title
+    DrawTextEx(gameFont, "HƯỚNG DẪN CHƠI",
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, "HƯỚNG DẪN CHƠI", 70, 2).x / 2, 60 },
+        70, 2, WHITE);
 
-    // 4. Dòng chữ nhắc nhở bấm ESC (vẽ đè lên trên cùng)
-    DrawTextEx(gameFont, "Nhan ESC de quay lai Menu", Vector2{ (float)GetScreenWidth() / 2 - 200, (float)GetScreenHeight() - 70 }, 30, 2, RED);
+    // Hình ảnh hướng dẫn
+    DrawTexture(huongdanImg,
+        (GetScreenWidth() - huongdanImg.width) / 2,
+        (GetScreenHeight() - huongdanImg.height) / 2 - 20,
+        WHITE);
+
+    // Gợi ý quay lại
+    const char* escT = "Nhấn ESC để quay lại MENU";
+    DrawTextEx(gameFont, escT,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escT, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
+        30, 2, RED);
 
     EndDrawing();
 }
+
+// ==========================================
 // MÀN HÌNH THÔNG TIN NHÓM
+// ==========================================
+// ==========================================================
+// MÀN HÌNH THÔNG TIN NHÓM (BẢN NÂNG CẤP UI/UX XỊN XÒ)
+// ==========================================================
 void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -614,261 +766,699 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
+
+    // 1. Vẽ nền gốc (Pokémon X/Y)
     DrawTexturePro(background, Rectangle{ 0, 0, (float)background.width, (float)background.height }, Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2{ 0, 0 }, 0.0f, WHITE);
 
-    // Nền đen làm mờ 80% để nổi bật chữ
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.8f));
+    // 2. Phủ lớp đen mờ 50% toàn màn hình để làm dịu background, tôn nội dung lên
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
 
-    DrawTextEx(gameFont, "THONG TIN DO AN", Vector2{ (float)GetScreenWidth() / 2 - 250, 80 }, 70, 2, WHITE);
+    // ==========================================
+    // 3. VẼ BẢNG THÔNG TIN (PANEL 3D) Ở GIỮA
+    // ==========================================
+    int boxWidth = 960;
+    int boxHeight = 720;
+    int boxX = (GetScreenWidth() - boxWidth) / 2;
+    int boxY = (GetScreenHeight() - boxHeight) / 2 - 20; // Nhích lên một chút cho cân đối
 
-    // Căn lề trái cho đoạn text
-    int startX = GetScreenWidth() / 2 - 350;
-    int startY = 220;
+    // Nền bảng đen mờ 85%, viền ngoài Vàng Gold sang trọng (Dày 4px)
+    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(BLACK, 0.85f));
+    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 4.0f, GOLD);
 
-    DrawTextEx(gameFont, "Truong: DH Khoa hoc Tu nhien - TPHCM", Vector2{ (float)startX, (float)startY }, 40, 2, LIGHTGRAY);
-    DrawTextEx(gameFont, "Mon hoc: Co so lap trinh", Vector2{ (float)startX, (float)startY + 60 }, 40, 2, GREEN);
-    DrawTextEx(gameFont, "Giang vien: Thay Truong Toan Thinh", Vector2{ (float)startX, (float)startY + 120 }, 40, 2, GREEN);
-    DrawTextEx(gameFont, "Do an: co Caro", Vector2{ (float)startX, (float)startY + 170 }, 40, 2, GREEN);
+    // Thêm một viền mỏng bên trong tạo cảm giác bảng điều khiển 3D
+    DrawRectangleLinesEx(Rectangle{ (float)boxX + 10, (float)boxY + 10, (float)boxWidth - 20, (float)boxHeight - 20 }, 1.0f, Fade(GOLD, 0.5f));
 
-    DrawTextEx(gameFont, "Nhom thuc hien: nhom 10", Vector2{ (float)startX, (float)startY + 220 }, 40, 2, YELLOW);
+    // ==========================================
+    // 4. TIÊU ĐỀ & ĐƯỜNG NGĂN CÁCH
+    // ==========================================
+    const char* titleText = "THÔNG TIN";
+    Vector2 titleSize = MeasureTextEx(gameFont, titleText, 70, 2);
+    DrawTextEx(gameFont, titleText, Vector2{ (float)GetScreenWidth() / 2 - titleSize.x / 2, (float)boxY + 40 }, 70, 2, GOLD);
 
-    // ĐIỀN TÊN VÀ MSSV VÀO ĐÂY
-    DrawTextEx(gameFont, "1. Luong Nguyen Hoang Vu - 24120493", Vector2{ (float)startX + 50, (float)startY + 270 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "2. Dinh Duc Hieu - 24120002", Vector2{ (float)startX + 50, (float)startY + 320 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "3. Dao Thanh Phong - 24120006", Vector2{ (float)startX + 50, (float)startY + 370 }, 35, 2, WHITE);
-	DrawTextEx(gameFont, "4. Le Hung Thang - 24120137", Vector2{ (float)startX + 50, (float)startY + 420 }, 35, 2, WHITE);
-	DrawTextEx(gameFont, "5. Nguyen Anh Duc - 24120289", Vector2{ (float)startX + 50, (float)startY + 470 }, 35, 2, WHITE);
+    // Đường gạch ngang mờ dưới tiêu đề
+    DrawLine(boxX + 100, boxY + 130, boxX + boxWidth - 100, boxY + 130, Fade(GOLD, 0.5f));
 
-    DrawTextEx(gameFont, "Cong nghe: C++ & Thu vien Raylib", Vector2{ (float)startX, (float)startY + 540 }, 35, 2, LIGHTGRAY);
+    // ==========================================
+    // 5. NỘI DUNG CHÍNH (CĂN LỀ TRÁI)
+    // ==========================================
+    int startX = boxX + 80;
+    int startY = boxY + 170;
+    int gap = 55;
 
-    // Hướng dẫn thoát
-    DrawTextEx(gameFont, "Nhan ESC de quay lai Menu", Vector2{ (float)GetScreenWidth() / 2 - 200, (float)GetScreenHeight() - 70 }, 30, 2, RED);
+    // Bảng màu chuẩn UI/UX
+    Color labelColor = LIGHTGRAY; // Màu cho các nhãn (Trường, Môn...)
+    Color valueColor = WHITE;     // Màu cho nội dung chính
+    Color nameColor = SKYBLUE;    // Màu nhấn mạnh cho tên thành viên
+
+    // Dòng 1: Trường
+    DrawTextEx(gameFont, "Trường :", Vector2{ (float)startX, (float)startY }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "ĐH Khoa học Tự nhiên - TPHCM", Vector2{ (float)startX + 200, (float)startY }, 40, 2, valueColor);
+
+    // Dòng 2: Môn học
+    DrawTextEx(gameFont, "Môn học:", Vector2{ (float)startX, (float)startY + gap }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "Cơ sở lập trình", Vector2{ (float)startX + 200, (float)startY + gap }, 40, 2, valueColor);
+
+    // Dòng 3: Giảng viên
+    DrawTextEx(gameFont, "Giảng viên:", Vector2{ (float)startX, (float)startY + gap * 2 }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "Thầy Trương Toàn Thịnh", Vector2{ (float)startX + 250, (float)startY + gap * 2 }, 40, 2, valueColor);
+
+    // Đường gạch ngang nhỏ ngăn cách phần nhóm
+    DrawLine(startX, startY + gap * 3 - 10, boxX + boxWidth - 80, startY + gap * 3 - 10, Fade(LIGHTGRAY, 0.3f));
+
+    // Dòng 4: Nhóm thực hiện
+    DrawTextEx(gameFont, "Nhóm thực hiện: Nhóm 10", Vector2{ (float)startX, (float)startY + gap * 3 + 10 }, 45, 2, GOLD);
+
+    // Danh sách thành viên (Thụt lề vào 50px so với lề trái)
+    int listX = startX + 50;
+    int listY = startY + gap * 4 + 10;
+    int listGap = 45;
+
+    DrawTextEx(gameFont, "1. Lương Nguyễn Hoàng Vũ - 24120493", Vector2{ (float)listX, (float)listY }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "2. Đinh Đức Hiếu - 24120002", Vector2{ (float)listX, (float)listY + listGap }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "3. Đào Thanh Phong - 24120006", Vector2{ (float)listX, (float)listY + listGap * 2 }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "4. Lê Hùng Thắng - 24120137", Vector2{ (float)listX, (float)listY + listGap * 3 }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "5. Nguyễn Anh Đức - 24120289", Vector2{ (float)listX, (float)listY + listGap * 4 }, 35, 2, nameColor);
+    // Dòng cuối: Công nghệ (Căn giữa ở đáy khung panel)
+    const char* techText = "Công nghệ: C++ & Thư viện Raylib";
+    Vector2 techSize = MeasureTextEx(gameFont, techText, 35, 2);
+    DrawTextEx(gameFont, techText, Vector2{ (float)GetScreenWidth() / 2 - techSize.x / 2, (float)boxY + boxHeight - 60 }, 35, 2, GRAY);
+
+    // ==========================================
+    // 6. NÚT ESC THOÁT BÊN NGOÀI KHUNG (HIỆU ỨNG CHỚP TẮT)
+    // ==========================================
+    // Dùng hàm GetTime() để tạo màu nhấp nháy Đỏ - Đỏ thẫm mỗi 0.3 giây
+    Color escColor = (((int)(GetTime() * 3)) % 2 == 0) ? RED : MAROON;
+    const char* escText = "Nhan [ESC] de quay lai Menu";
+    Vector2 escSize = MeasureTextEx(gameFont, escText, 30, 2);
+    DrawTextEx(gameFont, escText, Vector2{ (float)GetScreenWidth() / 2 - escSize.x / 2, (float)GetScreenHeight() - 60 }, 30, 2, escColor);
 
     EndDrawing();
 }
 
-// ==========================================================
-// HÀM XỬ LÝ MENU CHỌN CHẾ ĐỘ BOT
-// ==========================================================
-// Trong View.cpp
+// ==========================================
+// MÀN HÌNH CHỌN ĐỘ KHÓ (PVE)
+// ==========================================
 void DrawAndHandleDifficultyMenu(Texture2D background, Font gameFont) {
-    static int diffFocus = 1; // 0: Easy, 1: Normal, 2: Hard
-    int oldFocus = diffFocus;
+    static int focus = 1;
 
-    // =========================
-    // 1. Nhận phím điều hướng
-    // =========================
-    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
-        diffFocus = (diffFocus - 1 + 3) % 3;
-    }
+    // Điều hướng chọn độ khó
+    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) focus = (focus + 2) % 3;
+    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) focus = (focus + 1) % 3;
 
-    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
-        diffFocus = (diffFocus + 1) % 3;
-    }
-
-    if (diffFocus != oldFocus) PlayNavigateSfx();
-
-    BeginDrawing();
-
-    // =========================
-    // 2. VẼ ẢNH BACKGROUND
-    // =========================
-    DrawTexturePro(
-        background,
-        Rectangle{ 0, 0, (float)background.width, (float)background.height },
-        Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
-        Vector2{ 0, 0 },
-        0.0f,
-        WHITE
-    );
-
-    // phủ lớp mờ đen cho nổi menu
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.45f));
-
-    // =========================
-    // 3. TIÊU ĐỀ
-    // =========================
-    DrawTextEx(
-        gameFont,
-        "CHON DO KHO",
-        Vector2{ (float)GetScreenWidth() / 2 - 230, 180 },
-        65,
-        2,
-        WHITE
-    );
-
-    const char* diffLabels[] = { "DE", "TRUNG BINH", "KHO" };
-
-    // =========================
-    // 4. VẼ 3 NÚT
-    // =========================
-    for (int i = 0; i < 3; i++) {
-        Rectangle btn = {
-            (float)GetScreenWidth() / 2 - 450 + (i * 320),
-            400,
-            260,
-            100
-        };
-
-        // hover chuột
-        if (CheckCollisionPointRec(GetMousePosition(), btn))
-            diffFocus = i;
-
-        bool isHover = (diffFocus == i);
-
-        DrawRectangleRec(btn, isHover ? RED : GRAY);
-        DrawRectangleLinesEx(btn, 4, WHITE);
-
-        Vector2 textSize = MeasureTextEx(gameFont, diffLabels[i], 40, 2);
-
-        DrawTextEx(
-            gameFont,
-            diffLabels[i],
-            Vector2{
-                btn.x + (btn.width - textSize.x) / 2,
-                btn.y + (btn.height - textSize.y) / 2
-            },
-            40,
-            2,
-            isHover ? WHITE : BLACK
-        );
-
-        // click chuột
-        if (isHover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            PlaySelectSfx();
-            _BOT_DIFFICULTY = diffFocus;
-            _GAME_MODE = 2;
-            _GAME_STATE = 1;
-            ResetData();
-            _p1Moves = 0;
-            _p2Moves = 0;
-        }
-    }
-
-    // =========================
-    // 5. ENTER xác nhận
-    // =========================
-    if (IsKeyPressed(KEY_ENTER)) {
-        PlaySelectSfx();
-        _BOT_DIFFICULTY = diffFocus;
-        _GAME_MODE = 2;
-        _GAME_STATE = 1;
-        ResetData();
-        _p1Moves = 0;
-        _p2Moves = 0;
-    }
-    
-    // 3. Nhấn ESC để quay lại Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
         PlaySelectSfx();
         _GAME_STATE = 0;
     }
 
+    BeginDrawing();
+
+    // Background
+    DrawTexturePro(background,
+        { 0, 0, (float)background.width, (float)background.height },
+        { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
+        { 0, 0 }, 0.0f, WHITE);
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
+
+    // Title
+    DrawTextEx(gameFont, "CHỌN ĐỘ KHÓ",
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, "CHỌN ĐỘ KHÓ", 60, 2).x / 2, 150 },
+        60, 2, WHITE);
+
+    const char* labs[] = { "DỄ", "TRUNG BÌNH", "KHÓ" };
+    int btnW = 350;
+    int btnH = 90;
+    int totalW = 3 * btnW + 2 * 40; // 3 nút và 2 khoảng cách 40px
+    int startX = (GetScreenWidth() - totalW) / 2;
+
+    for (int i = 0; i < 3; i++) {
+        Rectangle r = { (float)(startX + i * (btnW + 40)), 380, (float)btnW, (float)btnH };
+        bool h = (focus == i);
+        float rR = 0.2f;
+
+        DrawRectangleRounded(r, rR, 10, h ? Fade(SKYBLUE, 0.6f) : Fade(BLACK, 0.25f));
+        if (h) {
+            DrawRectangleRoundedLines(r, rR, 10, YELLOW);
+            // Indicator nhỏ phía dưới nút
+            DrawRectangleRounded({ r.x + 40, r.y + r.height - 8, r.width - 80, 5 }, 1.0f, 0, YELLOW);
+        }
+
+        DrawTextEx(gameFont, labs[i],
+            { r.x + (350 - MeasureTextEx(gameFont, labs[i], 40, 2).x) / 2,
+              r.y + (90 - MeasureTextEx(gameFont, labs[i], 40, 2).y) / 2 },
+            40, 2, h ? YELLOW : WHITE);
+
+        if (h && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsKeyPressed(KEY_ENTER))) {
+            PlaySelectSfx();
+            _BOT_DIFFICULTY = i;
+            _GAME_MODE = 2;
+            _GAME_STATE = 7;
+            ResetData();
+        }
+    }
+
+    const char* escB = "Nhấn ESC để quay lại Menu";
+    DrawTextEx(gameFont, escB,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
+        30, 2, RED);
+
     EndDrawing();
 }
 
-// ==========================================================
-// MÀN HÌNH CÀI ĐẶT ÂM THANH
-// ==========================================================
+// ==========================================
+// MÀN HÌNH CÀI ĐẶT (SETTINGS)
+// ==========================================
 void DrawAndHandleSettings(Texture2D background, Font gameFont) {
-    static int setFocus = 0; // 0: Nhạc nền, 1: Âm thanh, 2: Âm lượng, 3: Quay lại
-    const int NUM_SETTINGS = 4;
+    static int setFocus = 0; // 0: Nhạc nền, 1: Âm thanh, 2: Âm lượng, 3: Thời gian, 4: Quay lại
+    const int NUM_SETTINGS = 5;
+    int oldFocus = setFocus;
 
     // --- LOGIC ĐIỀU HƯỚNG LÊN XUỐNG ---
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) setFocus = (setFocus - 1 + NUM_SETTINGS) % NUM_SETTINGS;
     if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) setFocus = (setFocus + 1) % NUM_SETTINGS;
 
+    if (setFocus != oldFocus) PlayNavigateSfx();
+
     // --- LOGIC TƯƠNG TÁC (TRÁI/PHẢI/ENTER) ---
     if (setFocus == 0 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
         _BGM_ON = !_BGM_ON; // Bật/tắt Nhạc nền
+        PlaySelectSfx();
     }
     if (setFocus == 1 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
         _SFX_ON = !_SFX_ON; // Bật/tắt Hiệu ứng âm thanh
+        PlaySelectSfx();
     }
     if (setFocus == 2) {
         if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
             _MASTER_VOL -= 0.1f; // Giảm 10%
             if (_MASTER_VOL < 0.0f) _MASTER_VOL = 0.0f;
-            SetMasterVolume(_MASTER_VOL); // Gọi hàm hệ thống của Raylib
+            SetMasterVolume(_MASTER_VOL); 
+            PlaySelectSfx();
         }
         if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
             _MASTER_VOL += 0.1f; // Tăng 10%
             if (_MASTER_VOL > 1.0f) _MASTER_VOL = 1.0f;
-            SetMasterVolume(_MASTER_VOL);
+            SetMasterVolume(_MASTER_VOL); 
+            PlaySelectSfx();
         }
     }
-    if ((setFocus == 3 && IsKeyPressed(KEY_ENTER)) || IsKeyPressed(KEY_ESCAPE)) {
-        _GAME_STATE = 0; // Về Menu
+    if (setFocus == 3 && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
+        _turnTimeLimit = (_turnTimeLimit == 15 ? 30 : (_turnTimeLimit == 30 ? 60 : 15));
+        _turnTimer = (float)_turnTimeLimit;
+        PlaySelectSfx();
+    }
+    if ((setFocus == 4 && IsKeyPressed(KEY_ENTER)) || IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _GAME_STATE = 0; // Quay về Menu chính
     }
 
-    // --- VẼ GIAO DIỆN ---
+    // --- VẼ GIAO DIỆN SÁNG HƠN ---
     BeginDrawing();
     ClearBackground(RAYWHITE);
     DrawTexturePro(background, Rectangle{ 0, 0, (float)background.width, (float)background.height }, Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2{ 0, 0 }, 0.0f, WHITE);
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.7f)); // Nền đen mờ 70%
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.35f)); // Lớp phủ cực mỏng (35%)
 
-    DrawTextEx(gameFont, "CAI DAT AM THANH", Vector2{ (float)GetScreenWidth() / 2 - 320, 150 }, 70, 2, WHITE);
-    DrawText("Dung A/D hoac Mui ten Trai/Phai de dieu chinh", GetScreenWidth() / 2 - 250, 250, 20, GREEN);
+    // Tiêu đề sáng
+    DrawTextEx(gameFont, "CÀI ĐẶT TRÒ CHƠI", Vector2{ (float)GetScreenWidth() / 2 - 320, 100 }, 70, 2, WHITE);
+    const char* hintS = "Dùng A/D hoặc Mũi tên để điều chỉnh";
+    DrawTextEx(gameFont, hintS, 
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, hintS, 25, 2).x / 2, 180 }, 25, 2, SKYBLUE);
 
-    int startY = 320;
-    int gap = 110;
+    int startY = 260;
+    int gap = 100;
 
     for (int i = 0; i < NUM_SETTINGS; i++) {
         Rectangle btnRec = { (float)GetScreenWidth() / 2 - 300, (float)(startY + i * gap), 600, 80 };
         bool isHover = (setFocus == i);
 
-        // Bắt sự kiện chuột
+        // --- XỬ LÝ CHUỘT ---
         if (CheckCollisionPointRec(GetMousePosition(), btnRec)) {
             setFocus = i;
+            isHover = true;
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                PlaySelectSfx();
                 if (i == 0) _BGM_ON = !_BGM_ON;
-                if (i == 1) _SFX_ON = !_SFX_ON;
-                if (i == 3) _GAME_STATE = 0;
+                else if (i == 1) _SFX_ON = !_SFX_ON;
+                else if (i == 3) {
+                    _turnTimeLimit = (_turnTimeLimit == 15 ? 30 : (_turnTimeLimit == 30 ? 60 : 15));
+                    _turnTimer = (float)_turnTimeLimit;
+                }
+                else if (i == 4) _GAME_STATE = 0;
             }
         }
 
-        DrawRectangleRec(btnRec, isHover ? DARKGRAY : LIGHTGRAY);
-        DrawRectangleLinesEx(btnRec, isHover ? 6.0f : 4.0f, BLACK);
+        // Hiệu ứng White Glass Modern
+        float rR = 0.2f;
+        DrawRectangleRounded(btnRec, rR, 10, isHover ? Fade(SKYBLUE, 0.6f) : Fade(WHITE, 0.15f));
+        
+        if (isHover) {
+            DrawRectangleRoundedLines(btnRec, rR, 10, YELLOW);
+            // Indicator sáng bên trái
+            DrawRectangleRounded({ btnRec.x - 15, btnRec.y + 10, 8, btnRec.height - 20 }, 1.0f, 0, YELLOW);
+        }
 
-        // Vẽ Text hiển thị trạng thái
+        // Vẽ Text hiển thị trạng thái với độ tương phản cao (Kích thước 30 để tránh tràn)
         if (i == 0) {
-            DrawTextEx(gameFont, "NHAC NEN:", Vector2{ btnRec.x + 30, btnRec.y + 20 }, 40, 2, isHover ? WHITE : BLACK);
-            DrawTextEx(gameFont, _BGM_ON ? "[ BAT ]" : "[ TAT ]", Vector2{ btnRec.x + 400, btnRec.y + 20 }, 40, 2, _BGM_ON ? GREEN : RED);
+            DrawTextEx(gameFont, "NHẠC NỀN:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
+            DrawTextEx(gameFont, _BGM_ON ? "BẬT" : "TẮT", Vector2{ btnRec.x + 420, btnRec.y + 22 }, 30, 2, _BGM_ON ? GREEN : RED);
         }
         else if (i == 1) {
-            DrawTextEx(gameFont, "HIEU UNG:", Vector2{ btnRec.x + 30, btnRec.y + 20 }, 40, 2, isHover ? WHITE : BLACK);
-            DrawTextEx(gameFont, _SFX_ON ? "[ BAT ]" : "[ TAT ]", Vector2{ btnRec.x + 400, btnRec.y + 20 }, 40, 2, _SFX_ON ? GREEN : RED);
+            DrawTextEx(gameFont, "ÂM THANH:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
+            DrawTextEx(gameFont, _SFX_ON ? "BẬT" : "TẮT", Vector2{ btnRec.x + 420, btnRec.y + 22 }, 30, 2, _SFX_ON ? GREEN : RED);
         }
         else if (i == 2) {
-            DrawTextEx(gameFont, "AM LUONG:", Vector2{ btnRec.x + 30, btnRec.y + 20 }, 40, 2, isHover ? WHITE : BLACK);
-
-            // Tính phần trăm âm lượng
+            DrawTextEx(gameFont, "ÂM LƯỢNG:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
             int volPercent = (int)(_MASTER_VOL * 100 + 0.5f);
-            DrawTextEx(gameFont, TextFormat("< %d%% >", volPercent), Vector2{ btnRec.x + 380, btnRec.y + 20 }, 40, 2, isHover ? YELLOW : BLACK);
+            DrawTextEx(gameFont, TextFormat("< %d%% >", volPercent), Vector2{ btnRec.x + 400, btnRec.y + 22 }, 30, 2, isHover ? YELLOW : SKYBLUE);
         }
         else if (i == 3) {
-            DrawTextEx(gameFont, "QUAY LAI MENU", Vector2{ btnRec.x + 160, btnRec.y + 20 }, 40, 2, isHover ? WHITE : BLACK);
+            DrawTextEx(gameFont, "GIỚI HẠN GIÂY:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
+            DrawTextEx(gameFont, TextFormat("%d GIÂY", _turnTimeLimit), Vector2{ btnRec.x + 400, btnRec.y + 22 }, 30, 2, isHover ? YELLOW : SKYBLUE);
+        }
+        else if (i == 4) {
+            DrawTextEx(gameFont, "QUAY LẠI MENU", Vector2{ btnRec.x + (btnRec.width - MeasureTextEx(gameFont, "QUAY LẠI MENU", 30, 2).x) / 2, btnRec.y + 22 }, 30, 2, isHover ? YELLOW : WHITE);
         }
     }
 
     EndDrawing();
 }
-// ==========================================================
-// HÀM CHÍNH ĐIỀU PHỐI TẤT CẢ LOGIC VÀ ĐỒ HỌA TRONG GAME
-// ==========================================================
-void DrawAndHandleGame(Texture2D background, Font gameFont) {
 
-    // 1. Cập nhật các thay đổi từ bàn phím (di chuyển, đánh cờ, pause...)
+// ==========================================
+// VÒNG LẶP ĐIỀU PHỐI GAME CHÍNH
+// ==========================================
+void DrawAndHandleGame(Texture2D background, Font gameFont, Font pieceFont) {
     HandleGameInput();
 
-    // 2. Render đồ họa ra màn hình
     BeginDrawing();
     ClearBackground(RAYWHITE);
 
-    // Vẽ các layer từ dưới lên trên (Layer dưới sẽ bị layer trên đè lên)
-    DrawGameUI(background, gameFont);        // Layer Dưới cùng: Bàn cờ, Avatar, Text thông báo
-    DrawAndHandleGameOver(gameFont);         // Layer Giữa: Bảng Game Over (Chỉ hiện khi có người thắng)
-    DrawAndHandlePauseMenu(gameFont);        // Layer Trên cùng: Bảng Pause (Chỉ hiện khi ấn ESC)
+    DrawGameUI(background, gameFont, pieceFont);
+    DrawAndHandleGameOver(gameFont);
+    DrawAndHandlePauseMenu(gameFont);
+    DrawAndHandleQuickSaveLoad(gameFont);
+    EndDrawing();
+}
+
+// ==========================================
+// MÀN HÌNH TẢI GAME (LOAD GAME)
+// ==========================================
+void DrawAndHandleLoad(Texture2D background, Font gameFont) {
+    static std::vector<std::string> pvp, pve;
+    static bool l = false;
+    static int f = 0, t = 0;
+
+    if (!l) {
+        pvp.clear();
+        pve.clear();
+        if (std::filesystem::exists("saves") && std::filesystem::is_directory("saves")) {
+            for (const auto& e : std::filesystem::directory_iterator("saves")) {
+                if (e.path().extension() == ".sav") {
+                    std::string n = e.path().filename().string();
+                    if (GetGameModeFromFile(n) == 1) pvp.push_back(n);
+                    else pve.push_back(n);
+                }
+            }
+        }
+        f = 0;
+        t = 0;
+        l = true;
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _GAME_STATE = 0;
+        l = false;
+    }
+
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+
+    // Vẽ nền
+    DrawTexturePro(background,
+        { 0, 0, (float)background.width, (float)background.height },
+        { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
+        { 0, 0 }, 0.0f, WHITE);
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.45f));
+
+    // Tiêu đề trang
+    DrawTextEx(gameFont, "TẢI TRẠNG THÁI GAME",
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, "TẢI TRẠNG THÁI GAME", 60, 2).x / 2, 60 },
+        60, 2, WHITE);
+
+    // --- LOGIC TAB & DANH SÁCH ---
+    std::vector<std::string>& currentList = (t == 0) ? pvp : pve;
+    int maxF = (int)currentList.size();
+
+    // Điều hướng Tab (Trái/Phải)
+    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
+        t = 1 - t;
+        f = 0; // Reset focus khi đổi tab
+        PlayNavigateSfx();
+    }
+
+    // Điều hướng Danh sách (Lên/Xuống)
+    if (maxF > 0) {
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
+            f = (f - 1 + maxF) % maxF;
+            PlayNavigateSfx();
+        }
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
+            f = (f + 1) % maxF;
+            PlayNavigateSfx();
+        }
+    }
+
+    // --- VẼ TAB ---
+    Rectangle rPvP = { (float)GetScreenWidth() / 2 - 420, 160, 400, 70 };
+    Rectangle rPvE = { (float)GetScreenWidth() / 2 + 20, 160, 400, 70 };
+
+    // Vẽ Tab PvP
+    DrawRectangleRounded(rPvP, 0.2f, 10, (t == 0) ? Fade(SKYBLUE, 0.6f) : Fade(BLACK, 0.3f));
+    if (t == 0) DrawRectangleRoundedLines(rPvP, 0.2f, 10, YELLOW);
+    DrawTextEx(gameFont, "PVP SAVES", { rPvP.x + (400 - MeasureTextEx(gameFont, "PVP SAVES", 30, 2).x) / 2, rPvP.y + 20 }, 30, 2, (t == 0) ? YELLOW : WHITE);
+
+    // Vẽ Tab PvE bo góc
+    DrawRectangleRounded(rPvE, 0.2f, 10, (t == 1) ? Fade(SKYBLUE, 0.6f) : Fade(BLACK, 0.3f));
+    if (t == 1) DrawRectangleRoundedLines(rPvE, 0.2f, 10, YELLOW);
+    DrawTextEx(gameFont, "PVE SAVES", { rPvE.x + (400 - MeasureTextEx(gameFont, "PVE SAVES", 30, 2).x) / 2, rPvE.y + 20 }, 30, 2, (t == 1) ? YELLOW : WHITE);
+
+    // --- VẼ DANH SÁCH FILE ---
+    Rectangle listArea = { (float)GetScreenWidth() / 2 - 450, 260, 900, 500 };
+    DrawRectangleRounded(listArea, 0.05f, 10, Fade(RAYWHITE, 0.9f));
+    DrawRectangleRoundedLines(listArea, 0.05f, 10, Fade(DARKGRAY, 0.5f));
+
+    if (maxF == 0) {
+        DrawTextEx(gameFont, "HIỆN CHƯA CÓ FILE NÀO ĐƯỢC LƯU",
+            { listArea.x + (listArea.width - MeasureTextEx(gameFont, "HIỆN CHƯA CÓ FILE NÀO ĐƯỢC LƯU", 30, 2).x) / 2, listArea.y + 200 },
+            30, 2, GRAY);
+    }
+    else {
+        for (int i = 0; i < maxF; i++) {
+            Rectangle itemR = { listArea.x + 20, listArea.y + 20 + i * 65, listArea.width - 40, 60 };
+            bool isFocused = (f == i);
+
+            // Xử lý chuột
+            if (CheckCollisionPointRec(GetMousePosition(), itemR)) {
+                if (f != i) { f = i; PlayNavigateSfx(); }
+                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    if (LoadGame(currentList[f])) {
+                        PlaySelectSfx();
+                        _GAME_STATE = 1;
+                        l = false;
+                    }
+                }
+            }
+
+            DrawRectangleRounded(itemR, 0.2f, 10, isFocused ? Fade(SKYBLUE, 0.6f) : Fade(BLACK, 0.1f));
+            if (isFocused) {
+                DrawRectangleRoundedLines(itemR, 0.2f, 10, YELLOW);
+                DrawRectangleRounded({ itemR.x - 10, itemR.y + 10, 6, itemR.height - 20 }, 1.0f, 0, YELLOW);
+            }
+            DrawTextEx(gameFont, currentList[i].c_str(), { itemR.x + 30, itemR.y + 15 }, 30, 2, isFocused ? YELLOW : BLACK);
+        }
+    }
+
+    // Xử lý phím Enter để Load
+    if (IsKeyPressed(KEY_ENTER) && maxF > 0) {
+        if (LoadGame(currentList[f])) {
+            PlaySelectSfx();
+            _GAME_STATE = 1;
+            l = false;
+        }
+    }
+
+    const char* hint = "Dùng WASD/Chuột để chọn - ENTER để Tải - ESC để Quay lại";
+    DrawTextEx(gameFont, hint,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, hint, 25, 2).x / 2, (float)GetScreenHeight() - 120 },
+        25, 2, WHITE);
+
+    const char* escB = "Nhấn ESC để quay lại Menu";
+    DrawTextEx(gameFont, escB,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
+        30, 2, RED);
 
     EndDrawing();
+}
+
+// ==========================================
+// MÀN HÌNH THIẾT LẬP NGƯỜI CHƠI (SETUP)
+// ==========================================
+void DrawAndHandleSetup(Texture2D background, Font gameFont) {
+    static int step = 0;
+    static int pokFocus = 0;
+    static int nameCount = 0;
+    static char name[51] = "\0";
+    static bool init = false;
+
+    if (!init) {
+        step = pokFocus = nameCount = 0;
+        name[0] = '\0';
+        init = true;
+    }
+
+    LoadPokemonTextures();
+
+    // --- BƯỚC 0 & 2: CHỌN POKEMON ---
+    if (step == 0 || step == 2) {
+        int oldF = pokFocus;
+
+        if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) pokFocus = (pokFocus + 14) % 15;
+        if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) pokFocus = (pokFocus + 1) % 15;
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) pokFocus = (pokFocus + 10) % 15;
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) pokFocus = (pokFocus + 5) % 15;
+
+        if (pokFocus != oldF) PlayNavigateSfx();
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            PlaySelectSfx();
+            if (step == 0) _P1_POKEMON = pokFocus;
+            else _P2_POKEMON = pokFocus;
+            step++;
+            name[0] = '\0';
+            nameCount = 0;
+        }
+    }
+    else { // --- BƯỚC 1 & 3: NHẬP TÊN NGƯỜI CHƠI ---
+        int key = GetCharPressed();
+        while (key > 0) {
+            if (key >= 32 && nameCount < 40) {
+                int blen = 0;
+                const char* u8 = CodepointToUTF8(key, &blen);
+                if (nameCount + blen < 50) {
+                    for (int i = 0; i < blen; i++) {
+                        name[nameCount++] = u8[i];
+                    }
+                    name[nameCount] = '\0';
+                }
+            }
+            key = GetCharPressed();
+        }
+
+        if (IsKeyPressed(KEY_BACKSPACE) && nameCount > 0) {
+            do {
+                nameCount--;
+            } while (nameCount > 0 && (name[nameCount] & 0xC0) == 0x80);
+            name[nameCount] = '\0';
+        }
+
+        if (IsKeyPressed(KEY_ENTER) && nameCount > 0) {
+            PlaySelectSfx();
+            if (step == 1) {
+                TextCopy(_P1_NAME, name);
+                if (_GAME_MODE == 2) { // Vào game ngay nếu là chế độ PvE
+                    _GAME_STATE = 1;
+                    init = false;
+                }
+                else { // Chuyển sang chọn P2 nếu là PvP
+                    step++;
+                    pokFocus = 0;
+                }
+            }
+            else {
+                TextCopy(_P2_NAME, name);
+                _GAME_STATE = 1;
+                init = false;
+            }
+        }
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _GAME_STATE = 0;
+        init = false;
+    }
+
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+
+    // Hình nền và lớp phủ
+    DrawTexturePro(background,
+        { 0, 0, (float)background.width, (float)background.height },
+        { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
+        { 0, 0 }, 0.0f, WHITE);
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.35f)); // Giảm xuống 35% cho sáng
+
+    // Tiêu đề trang
+    const char* title = (step < 2 ? "THIẾT LẬP NGƯỜI CHƠI 1 (X)" : "THIẾT LẬP NGƯỜI CHƠI 2 (O)");
+    DrawTextEx(gameFont, title,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, title, 60, 2).x / 2, 40 },
+        60, 2, WHITE);
+
+    bool isP1 = (step < 2);
+    float gridX = isP1 ? 175 : 725;   // Căn lề trái 175px, khoảng cách giữa 2 phần là 100px
+    float cardX = isP1 ? 1295 : 175;
+    float midY = GetScreenHeight() / 2 - 300;
+
+    // --- DANH SÁCH POKEMON (Bright Style like Name Board) ---
+    float gridR = 0.05f;
+    DrawRectangleRounded({ gridX - 20, midY - 20, 1020, 600 }, gridR, 10, Fade(RAYWHITE, 0.9f)); // Sáng giống bảng tên
+    DrawRectangleRoundedLines({ gridX - 20, midY - 20, 1020, 600 }, gridR, 10, Fade(DARKGRAY, 0.2f));
+
+    for (int i = 0; i < 15; i++) {
+        Rectangle r = { gridX + (i % 5) * 200, midY + (i / 5) * 190, 160, 160 };
+        bool isFocused = (pokFocus == i && (step == 0 || step == 2));
+
+        if (isFocused) {
+            DrawRectangleRounded(r, 0.2f, 10, Fade(SKYBLUE, 0.4f));
+            DrawRectangleRoundedLines(r, 0.2f, 10, isP1 ? RED : BLUE);
+            // Indicator sáng bên dưới
+            DrawRectangleRounded({ r.x + 20, r.y + r.height - 5, r.width - 40, 4 }, 1.0f, 0, isP1 ? RED : BLUE);
+        }
+        else {
+            DrawRectangleRounded(r, 0.2f, 10, Fade(BLACK, 0.05f)); // Màu xám cực nhẹ để phân biệt ô
+            DrawRectangleRoundedLines(r, 0.2f, 10, Fade(GRAY, 0.2f));
+        }
+
+        DrawTexturePro(_POKEMON_TEXTURES[i],
+            { 0, 0, (float)_POKEMON_TEXTURES[i].width, (float)_POKEMON_TEXTURES[i].height },
+            { r.x + 10, r.y + 10, 140, 140 }, { 0, 0 }, 0.0f, WHITE);
+    }
+
+    // --- THẺ XEM TRƯỚC THÔNG TIN ---
+    int cardW = 450;
+    int cardH = 750;
+    float cardY = GetScreenHeight() / 2 - cardH / 2;
+
+    DrawRectangleRounded({ cardX, cardY, (float)cardW, (float)cardH }, 0.05f, 10, Fade(RAYWHITE, 0.9f));
+    DrawRectangleRoundedLines({ cardX, cardY, (float)cardW, (float)cardH }, 0.05f, 10, Fade(isP1 ? RED : BLUE, 0.5f));
+
+    // Tiêu đề thẻ
+    // Tiêu đề thẻ bo góc trên
+    DrawRectangleRounded({ cardX, cardY, (float)cardW, 80 }, 0.2f, 10, isP1 ? RED : BLUE);
+    const char* hText = isP1 ? "PLAYER X INFO" : "PLAYER O INFO";
+    DrawTextEx(gameFont, hText,
+        { cardX + (cardW - MeasureTextEx(gameFont, hText, 35, 2).x) / 2, cardY + 22 },
+        35, 2, WHITE);
+
+    // Hình ảnh Pokemon đang chọn
+    Texture2D currentTex = _POKEMON_TEXTURES[pokFocus];
+    if (step == 1) currentTex = _POKEMON_TEXTURES[_P1_POKEMON];
+    if (step == 3) currentTex = _POKEMON_TEXTURES[_P2_POKEMON];
+
+    DrawTexturePro(currentTex,
+        { 0, 0, (float)currentTex.width, (float)currentTex.height },
+        { cardX + 50, cardY + 120, 350, 350 }, { 0, 0 }, 0.0f, WHITE);
+
+    // Ô nhập tên người chơi
+    DrawTextEx(gameFont, "TÊN NGƯỜI CHƠI:", { cardX + 40, cardY + 500 }, 25, 2, DARKGRAY);
+
+    Rectangle nameBox = { cardX + 30, cardY + 540, (float)cardW - 60, 80 };
+    DrawRectangleRounded(nameBox, 0.2f, 10, (step % 2 == 1) ? WHITE : LIGHTGRAY);
+    if (step % 2 == 1) DrawRectangleRoundedLines(nameBox, 0.2f, 10, isP1 ? RED : BLUE);
+
+    if (step % 2 == 1) {
+        DrawTextEx(gameFont, name, { nameBox.x + 20, nameBox.y + 20 }, 40, 2, isP1 ? RED : BLUE);
+        // Hiệu ứng con trỏ nhấp nháy
+        if (((int)(GetTime() * 2)) % 2 == 0) {
+            DrawTextEx(gameFont, "_",
+                { nameBox.x + 25 + MeasureTextEx(gameFont, name, 40, 2).x, nameBox.y + 20 },
+                40, 2, isP1 ? RED : BLUE);
+        }
+    }
+    else {
+        DrawTextEx(gameFont, "Đang chọn Pokemon...", { nameBox.x + 20, nameBox.y + 25 }, 25, 2, GRAY);
+    }
+
+    // Gợi ý điều hướng
+    const char* hint = (step % 2 == 0) ? "Dùng WASD để chọn hình" : "Nhập tên và nhấn ENTER";
+    DrawTextEx(gameFont, hint,
+        { cardX + (cardW - MeasureTextEx(gameFont, hint, 25, 2).x) / 2, cardY + 680 },
+        25, 2, DARKGRAY);
+
+    // Global Footer Hint
+    const char* escB = "Nhấn ESC để quay lại Menu";
+    DrawTextEx(gameFont, escB,
+        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
+        30, 2, RED);
+
+    EndDrawing();
+}
+// ==========================================================
+// HÀM VẼ VÀ XỬ LÝ NHẬP TÊN FILE KHI BẤM L HOẶC T
+// ==========================================================
+void DrawAndHandleQuickSaveLoad(Font gameFont) {
+    if (!_IS_QUICK_SAVING && !_IS_QUICK_LOADING) return;
+
+    static char fileName[50] = "\0";
+    static int nameCount = 0;
+
+    // Phủ lớp đen mờ lên game
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.7f));
+
+    // Vẽ cái hộp
+    int boxWidth = 600; int boxHeight = 300;
+    int boxX = (GetScreenWidth() - boxWidth) / 2;
+    int boxY = (GetScreenHeight() - boxHeight) / 2;
+
+    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(RAYWHITE, 0.95f));
+    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 5, DARKGRAY);
+
+    // --- LOGIC NHẬP CHỮ ---
+    int key = GetCharPressed();
+    while (key > 0) {
+        if ((key >= 32) && (key <= 125) && (nameCount < 40)) {
+            fileName[nameCount] = (char)key;
+            fileName[nameCount + 1] = '\0';
+            nameCount++;
+        }
+        key = GetCharPressed();
+    }
+    if (IsKeyPressed(KEY_BACKSPACE) && nameCount > 0) {
+        nameCount--; fileName[nameCount] = '\0';
+    }
+
+    // --- LOGIC XÁC NHẬN / HỦY ---
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _IS_QUICK_SAVING = false;
+        _IS_QUICK_LOADING = false;
+        fileName[0] = '\0'; nameCount = 0;
+    }
+    if (IsKeyPressed(KEY_ENTER) && nameCount > 0) {
+        PlaySelectSfx();
+        std::string fullPath = std::string(fileName) + ".sav";
+
+        if (_IS_QUICK_SAVING) {
+            SaveGame(fullPath); // Gọi hàm lưu
+        }
+        else if (_IS_QUICK_LOADING) {
+            LoadGame(fullPath); // Gọi hàm tải (Nhớ include file SaveLoad.h nếu chưa có)
+            _GAME_STATE = 1; // Đảm bảo load xong thì vẫn ở màn hình chơi
+        }
+
+        _IS_QUICK_SAVING = false;
+        _IS_QUICK_LOADING = false;
+        fileName[0] = '\0'; nameCount = 0; // Reset tên file
+    }
+
+    // --- VẼ CHỮ TRONG HỘP ---
+    const char* title = _IS_QUICK_SAVING ? "NHAP TEN FILE DE LUU:" : "NHAP TEN FILE DE TAI:";
+    DrawTextEx(gameFont, title, Vector2{ (float)boxX + 50, (float)boxY + 40 }, 40, 2, DARKGRAY);
+
+    DrawRectangle(boxX + 40, boxY + 110, 520, 60, LIGHTGRAY); // Khung viền chỗ nhập
+    DrawTextEx(gameFont, fileName, Vector2{ (float)boxX + 50, (float)boxY + 120 }, 40, 2, RED);
+
+    // Con trỏ nhấp nháy
+    if (((int)(GetTime() * 2)) % 2 == 0) DrawText("_", boxX + 50 + MeasureText(fileName, 40), boxY + 120, 40, RED);
+
+    DrawText("ENTER: Xac nhan | ESC: Huy bo", boxX + 130, boxY + 220, 20, DARKGRAY);
 }

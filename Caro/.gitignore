@@ -9,6 +9,7 @@
 *.vcxproj.user
 *.vcxproj.filters
 *.sln
+*.vcxproj       
 
 # ===== Build folders =====
 Debug/
