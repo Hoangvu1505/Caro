@@ -21,6 +21,10 @@ void ResetData() {
     int center = BOARD_SIZE / 2;
     _X = _A[center][center].x;
     _Y = _A[center][center].y;
+    _winLine.r1 = -1;
+    _winLine.c1 = -1;
+    _winLine.r2 = -1;
+    _winLine.c2 = -1;
 }
 
 // ==========================================

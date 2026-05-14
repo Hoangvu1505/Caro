@@ -65,9 +65,21 @@ void DrawBoardRaylib(Font gameFont) {
 
     // Vẽ đường gạch nối 5 quân cờ khi có người thắng
     if (_WINNER == -1 || _WINNER == 1) {
-        Vector2 startPos = { _A[_winLine.r1][_winLine.c1].x + CELL_SIZE / 2.0f, _A[_winLine.r1][_winLine.c1].y + CELL_SIZE / 2.0f };
-        Vector2 endPos = { _A[_winLine.r2][_winLine.c2].x + CELL_SIZE / 2.0f, _A[_winLine.r2][_winLine.c2].y + CELL_SIZE / 2.0f };
-        DrawLineEx(startPos, endPos, 10.0f, (_WINNER == -1) ? RED : BLUE);
+        // Tính toán tọa độ tâm của ô bắt đầu và ô kết thúc
+        float startX = _A[_winLine.r1][_winLine.c1].x + CELL_SIZE / 2.0f;
+        float startY = _A[_winLine.r1][_winLine.c1].y + CELL_SIZE / 2.0f;
+        float endX = _A[_winLine.r2][_winLine.c2].x + CELL_SIZE / 2.0f;
+        float endY = _A[_winLine.r2][_winLine.c2].y + CELL_SIZE / 2.0f;
+
+        Vector2 startPos = { startX, startY };
+        Vector2 endPos = { endX, endY };
+        Color winColor = (_WINNER == -1) ? RED : BLUE;
+
+        // 💡 HIỆU ỨNG CHỚP TẮT Ở ĐÂY
+        // TUYỆT ĐỐI không để lệnh DrawLineEx nào khác lọt ra ngoài khối if này
+        if (((int)(GetTime() * 8)) % 2 == 0) {
+            DrawLineEx(startPos, endPos, 10.0f, winColor);
+        }
     }
 }
 
@@ -425,7 +437,7 @@ void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
 
     if (!_TURN && _WINNER == 2) {
         DrawTextEx(gameFont, TextFormat("%02d s", (int)ceilf(_turnTimer)),
-            { (float)p2X + 160, (float)cY + 480 },
+            { (float)p2X + 220, (float)cY + 480 },
             40, 2, (_turnTimer <= 5) ? RED : Color{ 0, 68, 129, 255 });
     }
 }
@@ -444,16 +456,31 @@ void DrawAndHandleGameOver(Font gameFont) {
     if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) gFocus = 0;
     if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) gFocus = 1;
 
-    // Lớp phủ nền mờ
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.4f));
+    // 1. Lớp phủ nền mờ (Hiệu ứng Fade-in từ từ trong 30 frame)
+    float bgAlpha = (waitT < 30) ? (waitT / 30.0f) * 0.4f : 0.4f;
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, bgAlpha));
 
-    // Kích thước và tọa độ hộp thoại
+    // Kích thước hộp thoại
     int bW = 800;
     int bH = 400;
     int bX = (GetScreenWidth() - bW) / 2;
-    int bY = (GetScreenHeight() - bH) / 2;
 
-    // Vẽ hộp thoại thông báo bo góc (Modern style)
+    // 2. Tọa độ Y động (Hiệu ứng Slide-down trượt từ trên xuống)
+    int targetY = (GetScreenHeight() - bH) / 2; // Vị trí đích ở giữa
+    int startY = -bH - 50; // Giấu hẳn lên trên nóc
+
+    float progress = 0.0f;
+    // Chờ 60 frame ngắm bàn cờ chiến thắng rồi mới bắt đầu trượt
+    if (waitT > 60) {
+        progress = (waitT - 60) / 45.0f; // Trượt trong 45 frame
+        if (progress > 1.0f) progress = 1.0f;
+    }
+
+    // Thuật toán hãm phanh mượt mà (Ease-Out)
+    float easeOut = progress * (2.0f - progress);
+    int bY = startY + (int)((targetY - startY) * easeOut);
+
+    // Vẽ hộp thoại thông báo bo góc (Modern style) - Tọa độ lấy theo bY động
     float roundness = 0.1f;
     DrawRectangleRounded({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(RAYWHITE, 0.95f));
     DrawRectangleRoundedLines({ (float)bX, (float)bY, (float)bW, (float)bH }, roundness, 10, Fade(DARKGRAY, 0.5f));
@@ -461,7 +488,7 @@ void DrawAndHandleGameOver(Font gameFont) {
     // Hiển thị thông báo người chiến thắng
     const char* rT = (_WINNER == 0) ? "HÒA CỜ!" :
         (_WINNER == -1 ? "Người chơi X THẮNG!" :
-        (_GAME_MODE == 1 ? "Người chơi O THẮNG!" : "MÁY THẮNG!"));
+            (_GAME_MODE == 1 ? "Người chơi O THẮNG!" : "MÁY THẮNG!"));
     Color rC = (_WINNER == 0) ? DARKGRAY : (_WINNER == -1 ? RED : BLUE);
     DrawTextEx(gameFont, rT,
         { (float)bX + (bW - MeasureTextEx(gameFont, rT, 55, 2).x) / 2, (float)bY + 80 },
@@ -480,8 +507,9 @@ void DrawAndHandleGameOver(Font gameFont) {
             { r.x + (r.width - MeasureTextEx(gameFont, t, 45, 2).x) / 2,
               r.y + (r.height - MeasureTextEx(gameFont, t, 45, 2).y) / 2 },
             45, 2, h ? WHITE : BLACK);
-    };
+        };
 
+    // Tọa độ 2 nút cũng trượt theo bY
     Rectangle bPA = { (float)bX + 100, (float)bY + 260, 280, 80 };
     Rectangle bM = { (float)bX + 420, (float)bY + 260, 280, 80 };
 
@@ -492,8 +520,8 @@ void DrawAndHandleGameOver(Font gameFont) {
     DB(bPA, "CHƠI LẠI", gFocus == 0);
     DB(bM, "MENU", gFocus == 1);
 
-    // Xử lý xác nhận lựa chọn
-    if (waitT > 30) {
+    // 3. Xử lý xác nhận lựa chọn (Đợi animation chạy xong hẳn mới cho bấm)
+    if (waitT > 85) {
         bool enterPressed = IsKeyPressed(KEY_ENTER);
         bool mouseClicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
             (CheckCollisionPointRec(GetMousePosition(), bPA) || CheckCollisionPointRec(GetMousePosition(), bM));
@@ -506,7 +534,7 @@ void DrawAndHandleGameOver(Font gameFont) {
                 _GAME_MODE = m;
                 _p1Moves = _p2Moves = 0;
                 _WINNER = 2;
-                _IS_PAUSED = false; 
+                _IS_PAUSED = false;
                 _ROUND++;
             }
             else {
@@ -514,7 +542,7 @@ void DrawAndHandleGameOver(Font gameFont) {
                 _IS_PAUSED = false;
                 _ROUND = 1;
             }
-            waitT = 0;
+            waitT = 0; // Trả lại timer về 0 để phục vụ cho ván tiếp theo
         }
     }
 }
@@ -743,7 +771,7 @@ void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font
         WHITE);
 
     // Gợi ý quay lại
-    const char* escT = "Nhấn ESC để quay lại MENU";
+    const char* escT = "Nhấn [ESC] để quay lại MENU";
     DrawTextEx(gameFont, escT,
         { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escT, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
         30, 2, RED);
@@ -754,9 +782,6 @@ void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font
 // ==========================================
 // MÀN HÌNH THÔNG TIN NHÓM
 // ==========================================
-// ==========================================================
-// MÀN HÌNH THÔNG TIN NHÓM (BẢN NÂNG CẤP UI/UX XỊN XÒ)
-// ==========================================================
 void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -773,9 +798,7 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // 2. Phủ lớp đen mờ 50% toàn màn hình để làm dịu background, tôn nội dung lên
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
 
-    // ==========================================
     // 3. VẼ BẢNG THÔNG TIN (PANEL 3D) Ở GIỮA
-    // ==========================================
     int boxWidth = 960;
     int boxHeight = 720;
     int boxX = (GetScreenWidth() - boxWidth) / 2;
@@ -788,9 +811,7 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Thêm một viền mỏng bên trong tạo cảm giác bảng điều khiển 3D
     DrawRectangleLinesEx(Rectangle{ (float)boxX + 10, (float)boxY + 10, (float)boxWidth - 20, (float)boxHeight - 20 }, 1.0f, Fade(GOLD, 0.5f));
 
-    // ==========================================
     // 4. TIÊU ĐỀ & ĐƯỜNG NGĂN CÁCH
-    // ==========================================
     const char* titleText = "THÔNG TIN";
     Vector2 titleSize = MeasureTextEx(gameFont, titleText, 70, 2);
     DrawTextEx(gameFont, titleText, Vector2{ (float)GetScreenWidth() / 2 - titleSize.x / 2, (float)boxY + 40 }, 70, 2, GOLD);
@@ -798,9 +819,7 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Đường gạch ngang mờ dưới tiêu đề
     DrawLine(boxX + 100, boxY + 130, boxX + boxWidth - 100, boxY + 130, Fade(GOLD, 0.5f));
 
-    // ==========================================
     // 5. NỘI DUNG CHÍNH (CĂN LỀ TRÁI)
-    // ==========================================
     int startX = boxX + 80;
     int startY = boxY + 170;
     int gap = 55;
@@ -848,7 +867,7 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // ==========================================
     // Dùng hàm GetTime() để tạo màu nhấp nháy Đỏ - Đỏ thẫm mỗi 0.3 giây
     Color escColor = (((int)(GetTime() * 3)) % 2 == 0) ? RED : MAROON;
-    const char* escText = "Nhan [ESC] de quay lai Menu";
+    const char* escText = "Nhấn [ESC] để quay lại Menu";
     Vector2 escSize = MeasureTextEx(gameFont, escText, 30, 2);
     DrawTextEx(gameFont, escText, Vector2{ (float)GetScreenWidth() / 2 - escSize.x / 2, (float)GetScreenHeight() - 60 }, 30, 2, escColor);
 
@@ -916,7 +935,7 @@ void DrawAndHandleDifficultyMenu(Texture2D background, Font gameFont) {
         }
     }
 
-    const char* escB = "Nhấn ESC để quay lại Menu";
+    const char* escB = "Nhấn [ESC] để quay lại Menu";
     DrawTextEx(gameFont, escB,
         { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
         30, 2, RED);
@@ -1186,12 +1205,19 @@ void DrawAndHandleLoad(Texture2D background, Font gameFont) {
         }
     }
 
-    const char* hint = "Dùng WASD/Chuột để chọn - ENTER để Tải - ESC để Quay lại";
+    if (IsKeyPressed(KEY_DELETE) && maxF > 0) {
+        PlaySelectSfx();
+        if (DeleteGame(currentList[f])) {
+            l = false; // Cực kỳ quan trọng: Ép vòng lặp sau phải đọc lại thư mục saves
+        }
+    }
+
+    const char* hint = "WASD/Chuột: Chọn | ENTER: Tải | DELETE: Xóa | ESC: Quay lại";
     DrawTextEx(gameFont, hint,
         { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, hint, 25, 2).x / 2, (float)GetScreenHeight() - 120 },
         25, 2, WHITE);
 
-    const char* escB = "Nhấn ESC để quay lại Menu";
+    const char* escB = "Nhấn [ESC] để quay lại Menu";
     DrawTextEx(gameFont, escB,
         { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
         30, 2, RED);
@@ -1344,7 +1370,7 @@ void DrawAndHandleSetup(Texture2D background, Font gameFont) {
     // Tiêu đề thẻ
     // Tiêu đề thẻ bo góc trên
     DrawRectangleRounded({ cardX, cardY, (float)cardW, 80 }, 0.2f, 10, isP1 ? RED : BLUE);
-    const char* hText = isP1 ? "PLAYER X INFO" : "PLAYER O INFO";
+    const char* hText = isP1 ? "Thông tin người chơi X" : "Thông tin người chơi O";
     DrawTextEx(gameFont, hText,
         { cardX + (cardW - MeasureTextEx(gameFont, hText, 35, 2).x) / 2, cardY + 22 },
         35, 2, WHITE);
@@ -1385,7 +1411,7 @@ void DrawAndHandleSetup(Texture2D background, Font gameFont) {
         25, 2, DARKGRAY);
 
     // Global Footer Hint
-    const char* escB = "Nhấn ESC để quay lại Menu";
+    const char* escB = "Nhấn [ESC] để quay lại Menu";
     DrawTextEx(gameFont, escB,
         { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, escB, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
         30, 2, RED);
@@ -1451,7 +1477,7 @@ void DrawAndHandleQuickSaveLoad(Font gameFont) {
     }
 
     // --- VẼ CHỮ TRONG HỘP ---
-    const char* title = _IS_QUICK_SAVING ? "NHAP TEN FILE DE LUU:" : "NHAP TEN FILE DE TAI:";
+    const char* title = _IS_QUICK_SAVING ? "Nhập tên file để lưu:" : "Nhập tên file để tải:";
     DrawTextEx(gameFont, title, Vector2{ (float)boxX + 50, (float)boxY + 40 }, 40, 2, DARKGRAY);
 
     DrawRectangle(boxX + 40, boxY + 110, 520, 60, LIGHTGRAY); // Khung viền chỗ nhập
@@ -1460,5 +1486,5 @@ void DrawAndHandleQuickSaveLoad(Font gameFont) {
     // Con trỏ nhấp nháy
     if (((int)(GetTime() * 2)) % 2 == 0) DrawText("_", boxX + 50 + MeasureText(fileName, 40), boxY + 120, 40, RED);
 
-    DrawText("ENTER: Xac nhan | ESC: Huy bo", boxX + 130, boxY + 220, 20, DARKGRAY);
+    DrawText("ENTER: Xác nhận | ESC: Hủy bỏ", boxX + 130, boxY + 220, 20, DARKGRAY);
 }

@@ -72,4 +72,5 @@ extern int _turnTimeLimit;  // Giới hạn thời gian (15, 30, 60)
 // Thêm khai báo biến toàn cục cho tính năng lưu/đọc file
 extern bool _IS_QUICK_SAVING;
 extern bool _IS_QUICK_LOADING;
+extern bool _IS_QUICK_DELETING;
 #endif // DATA_H
