@@ -31,6 +31,8 @@ int _P2_POKEMON = 1;
 int _ROUND = 1;
 float _turnTimer = 15.0f;
 int _turnTimeLimit = 15;
+bool _IS_QUICK_SAVING = false;
+bool _IS_QUICK_LOADING = false;
 #ifdef _WIN32
 #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
 #endif

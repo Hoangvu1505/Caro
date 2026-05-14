@@ -20,4 +20,5 @@ void DrawAndHandleGame(Texture2D background, Font gameFont, Font pieceFont);
 void DrawAndHandleSettings(Texture2D background, Font gameFont);
 void DrawAndHandleLoad(Texture2D background, Font gameFont);
 void DrawAndHandleSetup(Texture2D background, Font gameFont);
+void DrawAndHandleQuickSaveLoad(Font gameFont);
 #endif

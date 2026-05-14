@@ -68,4 +68,8 @@ extern int _ROUND;
 extern float _turnTimer;    // Thời gian còn lại của lượt hiện tại
 extern int _turnTimeLimit;  // Giới hạn thời gian (15, 30, 60)
 
+
+// Thêm khai báo biến toàn cục cho tính năng lưu/đọc file
+extern bool _IS_QUICK_SAVING;
+extern bool _IS_QUICK_LOADING;
 #endif // DATA_H

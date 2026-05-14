@@ -193,6 +193,23 @@ void DrawAndHandleMenu(Texture2D background, Font gameFont) {
 // XỬ LÝ ĐIỀU KHIỂN TRONG GAME
 // ==========================================
 void HandleGameInput() {
+    if (_IS_QUICK_SAVING || _IS_QUICK_LOADING) return;
+
+    // 2. BẮT PHÍM TẮT 'L' VÀ 'T' TRONG LÚC CHƠI
+    if (_WINNER == 2 && !_IS_PAUSED) {
+        if (IsKeyPressed(KEY_L)) {
+            _IS_QUICK_SAVING = true;
+            PlaySelectSfx();
+            while (GetCharPressed() > 0) {}
+            return;
+        }
+        if (IsKeyPressed(KEY_T)) {
+            _IS_QUICK_LOADING = true;
+            PlaySelectSfx();
+            while (GetCharPressed() > 0) {}
+            return;
+        }
+    }
     // Xử lý tạm dừng game
     if (IsKeyPressed(KEY_ESCAPE) && _WINNER == 2) {
         _IS_PAUSED = !_IS_PAUSED;
@@ -360,8 +377,8 @@ void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
     DrawTextEx(gameFont, _P1_NAME,
         Vector2{ (float)p1X + cW / 2 - MeasureTextEx(gameFont, _P1_NAME, 35, 2).x / 2, (float)cY + 25 },
         35, 2, RED);
-    DrawTextEx(gameFont, "PLAYER X",
-        Vector2{ (float)p1X + cW / 2 - MeasureTextEx(gameFont, "PLAYER X", 20, 2).x / 2, (float)cY + 65 },
+    DrawTextEx(gameFont, "Người chơi X",
+        Vector2{ (float)p1X + cW / 2 - MeasureTextEx(gameFont, "Người chơi X", 20, 2).x / 2, (float)cY + 65 },
         20, 2, DARKGRAY);
 
     DrawLine(p1X + 30, cY + 100, p1X + cW - 30, cY + 100, LIGHTGRAY);
@@ -371,13 +388,13 @@ void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
     DrawLine(p1X + 30, cY + 370, p1X + cW - 30, cY + 370, LIGHTGRAY);
 
     int dP1W = (_GAME_MODE == 1) ? _p1WinsPvP : _p1WinsPvE;
-    DrawTextEx(gameFont, TextFormat("WINS : %d", dP1W), { (float)p1X + 50, (float)cY + 385 }, 30, 2, Color{ 180, 0, 0, 255 });
-    DrawTextEx(gameFont, TextFormat("MOVES: %d", _p1Moves), { (float)p1X + 50, (float)cY + 435 }, 30, 2, Color{ 180, 0, 0, 255 });
-    DrawTextEx(gameFont, "TIME :", Vector2{ (float)p1X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
+    DrawTextEx(gameFont, TextFormat("Số lần thắng : %d", dP1W), { (float)p1X + 50, (float)cY + 385 }, 30, 2, Color{ 180, 0, 0, 255 });
+    DrawTextEx(gameFont, TextFormat("Số nước đi: %d", _p1Moves), { (float)p1X + 50, (float)cY + 435 }, 30, 2, Color{ 180, 0, 0, 255 });
+    DrawTextEx(gameFont, "Thời gian :", Vector2{ (float)p1X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
 
     if (_TURN && _WINNER == 2) {
         DrawTextEx(gameFont, TextFormat("%02d s", (int)ceilf(_turnTimer)),
-            { (float)p1X + 160, (float)cY + 480 },
+            { (float)p1X + 220, (float)cY + 480 },
             40, 2, (_turnTimer <= 5) ? RED : Color{ 180, 0, 0, 255 });
     }
 
@@ -385,12 +402,12 @@ void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
     DrawRectangle(p2X, cY, cW, cH, Fade(WHITE, 0.85f));
     DrawRectangleLinesEx(Rectangle{ (float)p2X, (float)cY, (float)cW, (float)cH }, (!_TURN && _WINNER == 2) ? 8 : 4, BLUE);
 
-    const char* p2n = (_GAME_MODE == 1) ? _P2_NAME : "COMPUTER";
+    const char* p2n = (_GAME_MODE == 1) ? _P2_NAME : "Máy";
     DrawTextEx(gameFont, p2n,
         Vector2{ (float)p2X + cW / 2 - MeasureTextEx(gameFont, p2n, 35, 2).x / 2, (float)cY + 25 },
         35, 2, BLUE);
 
-    const char* sub2 = (_GAME_MODE == 1) ? "PLAYER O" : "BOT O";
+    const char* sub2 = (_GAME_MODE == 1) ? "Người chơi O" : "BOT O";
     DrawTextEx(gameFont, sub2,
         Vector2{ (float)p2X + cW / 2 - MeasureTextEx(gameFont, sub2, 20, 2).x / 2, (float)cY + 65 },
         20, 2, DARKGRAY);
@@ -402,9 +419,9 @@ void DrawGameUI(Texture2D background, Font gameFont, Font pieceFont) {
     DrawLine(p2X + 30, cY + 370, p2X + cW - 30, cY + 370, LIGHTGRAY);
 
     int dP2W = (_GAME_MODE == 1) ? _p2WinsPvP : _botWins;
-    DrawTextEx(gameFont, TextFormat("WINS : %d", dP2W), { (float)p2X + 50, (float)cY + 385 }, 30, 2, Color{ 0, 68, 129, 255 });
-    DrawTextEx(gameFont, TextFormat("MOVES: %d", _p2Moves), { (float)p2X + 50, (float)cY + 435 }, 30, 2, Color{ 0, 68, 129, 255 });
-    DrawTextEx(gameFont, "TIME :", Vector2{ (float)p2X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
+    DrawTextEx(gameFont, TextFormat("Số lần thắng : %d", dP2W), { (float)p2X + 50, (float)cY + 385 }, 30, 2, Color{ 0, 68, 129, 255 });
+    DrawTextEx(gameFont, TextFormat("Số nước đi: %d", _p2Moves), { (float)p2X + 50, (float)cY + 435 }, 30, 2, Color{ 0, 68, 129, 255 });
+    DrawTextEx(gameFont, "Thời gian :", Vector2{ (float)p2X + 50, (float)cY + 485 }, 30, 2, DARKGRAY);
 
     if (!_TURN && _WINNER == 2) {
         DrawTextEx(gameFont, TextFormat("%02d s", (int)ceilf(_turnTimer)),
@@ -443,8 +460,8 @@ void DrawAndHandleGameOver(Font gameFont) {
 
     // Hiển thị thông báo người chiến thắng
     const char* rT = (_WINNER == 0) ? "HÒA CỜ!" :
-        (_WINNER == -1 ? "PLAYER X THẮNG!" :
-        (_GAME_MODE == 1 ? "PLAYER O THẮNG!" : "MÁY THẮNG!"));
+        (_WINNER == -1 ? "Người chơi X THẮNG!" :
+        (_GAME_MODE == 1 ? "Người chơi O THẮNG!" : "MÁY THẮNG!"));
     Color rC = (_WINNER == 0) ? DARKGRAY : (_WINNER == -1 ? RED : BLUE);
     DrawTextEx(gameFont, rT,
         { (float)bX + (bW - MeasureTextEx(gameFont, rT, 55, 2).x) / 2, (float)bY + 80 },
@@ -737,6 +754,9 @@ void DrawAndHandleInstructions(Texture2D background, Texture2D huongdanImg, Font
 // ==========================================
 // MÀN HÌNH THÔNG TIN NHÓM
 // ==========================================
+// ==========================================================
+// MÀN HÌNH THÔNG TIN NHÓM (BẢN NÂNG CẤP UI/UX XỊN XÒ)
+// ==========================================================
 void DrawAndHandleInfo(Texture2D background, Font gameFont) {
     // Bấm ESC để quay về Menu chính
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -746,40 +766,91 @@ void DrawAndHandleInfo(Texture2D background, Font gameFont) {
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
+
+    // 1. Vẽ nền gốc (Pokémon X/Y)
     DrawTexturePro(background, Rectangle{ 0, 0, (float)background.width, (float)background.height }, Rectangle{ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2{ 0, 0 }, 0.0f, WHITE);
 
-    // Nền đen làm mờ 80% để nổi bật chữ
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.8f));
+    // 2. Phủ lớp đen mờ 50% toàn màn hình để làm dịu background, tôn nội dung lên
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
 
-    // Vẽ tiêu đề căn giữa tuyệt đối
-    float titleSize = 70;
-    Vector2 titlePos = { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, "THÔNG TIN ĐỒ ÁN", titleSize, 2).x / 2, 80 };
-    DrawTextEx(gameFont, "THÔNG TIN ĐỒ ÁN", titlePos, titleSize, 2, WHITE);
+    // ==========================================
+    // 3. VẼ BẢNG THÔNG TIN (PANEL 3D) Ở GIỮA
+    // ==========================================
+    int boxWidth = 960;
+    int boxHeight = 720;
+    int boxX = (GetScreenWidth() - boxWidth) / 2;
+    int boxY = (GetScreenHeight() - boxHeight) / 2 - 20; // Nhích lên một chút cho cân đối
 
-    // Căn lề trái cho đoạn text
-    int startX = GetScreenWidth() / 2 - 350;
-    int startY = 220;
+    // Nền bảng đen mờ 85%, viền ngoài Vàng Gold sang trọng (Dày 4px)
+    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(BLACK, 0.85f));
+    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 4.0f, GOLD);
 
-    DrawTextEx(gameFont, "Truong: DH Khoa hoc Tu nhien - TPHCM", Vector2{ (float)startX, (float)startY }, 40, 2, LIGHTGRAY);
-    DrawTextEx(gameFont, "Mon hoc: Co so lap trinh", Vector2{ (float)startX, (float)startY + 60 }, 40, 2, GREEN);
-    DrawTextEx(gameFont, "Giang vien: Thay Truong Toan Thinh", Vector2{ (float)startX, (float)startY + 120 }, 40, 2, GREEN);
-    DrawTextEx(gameFont, "Do an: co Caro", Vector2{ (float)startX, (float)startY + 170 }, 40, 2, GREEN);
-    DrawTextEx(gameFont, "Nhom thuc hien: nhom 10", Vector2{ (float)startX, (float)startY + 220 }, 40, 2, YELLOW);
+    // Thêm một viền mỏng bên trong tạo cảm giác bảng điều khiển 3D
+    DrawRectangleLinesEx(Rectangle{ (float)boxX + 10, (float)boxY + 10, (float)boxWidth - 20, (float)boxHeight - 20 }, 1.0f, Fade(GOLD, 0.5f));
 
-    // Danh sách thành viên
-    DrawTextEx(gameFont, "1. Luong Nguyen Hoang Vu - 24120493", Vector2{ (float)startX + 50, (float)startY + 270 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "2. Dinh Duc Hieu - 24120002", Vector2{ (float)startX + 50, (float)startY + 320 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "3. Dao Thanh Phong - 24120006", Vector2{ (float)startX + 50, (float)startY + 370 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "4. Le Hung Thang - 24120137", Vector2{ (float)startX + 50, (float)startY + 420 }, 35, 2, WHITE);
-    DrawTextEx(gameFont, "5. Nguyen Anh Duc - 24120289", Vector2{ (float)startX + 50, (float)startY + 470 }, 35, 2, WHITE);
+    // ==========================================
+    // 4. TIÊU ĐỀ & ĐƯỜNG NGĂN CÁCH
+    // ==========================================
+    const char* titleText = "THÔNG TIN";
+    Vector2 titleSize = MeasureTextEx(gameFont, titleText, 70, 2);
+    DrawTextEx(gameFont, titleText, Vector2{ (float)GetScreenWidth() / 2 - titleSize.x / 2, (float)boxY + 40 }, 70, 2, GOLD);
 
-    DrawTextEx(gameFont, "Công nghệ: C++ & Thư viện Raylib", Vector2{ (float)startX, (float)startY + 540 }, 35, 2, LIGHTGRAY);
+    // Đường gạch ngang mờ dưới tiêu đề
+    DrawLine(boxX + 100, boxY + 130, boxX + boxWidth - 100, boxY + 130, Fade(GOLD, 0.5f));
 
-    // Hướng dẫn thoát căn giữa
-    const char* hintEsc = "Nhấn ESC để quay lại Menu";
-    DrawTextEx(gameFont, hintEsc,
-        { (float)GetScreenWidth() / 2 - MeasureTextEx(gameFont, hintEsc, 30, 2).x / 2, (float)GetScreenHeight() - 70 },
-        30, 2, RED);
+    // ==========================================
+    // 5. NỘI DUNG CHÍNH (CĂN LỀ TRÁI)
+    // ==========================================
+    int startX = boxX + 80;
+    int startY = boxY + 170;
+    int gap = 55;
+
+    // Bảng màu chuẩn UI/UX
+    Color labelColor = LIGHTGRAY; // Màu cho các nhãn (Trường, Môn...)
+    Color valueColor = WHITE;     // Màu cho nội dung chính
+    Color nameColor = SKYBLUE;    // Màu nhấn mạnh cho tên thành viên
+
+    // Dòng 1: Trường
+    DrawTextEx(gameFont, "Trường :", Vector2{ (float)startX, (float)startY }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "ĐH Khoa học Tự nhiên - TPHCM", Vector2{ (float)startX + 200, (float)startY }, 40, 2, valueColor);
+
+    // Dòng 2: Môn học
+    DrawTextEx(gameFont, "Môn học:", Vector2{ (float)startX, (float)startY + gap }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "Cơ sở lập trình", Vector2{ (float)startX + 200, (float)startY + gap }, 40, 2, valueColor);
+
+    // Dòng 3: Giảng viên
+    DrawTextEx(gameFont, "Giảng viên:", Vector2{ (float)startX, (float)startY + gap * 2 }, 40, 2, labelColor);
+    DrawTextEx(gameFont, "Thầy Trương Toàn Thịnh", Vector2{ (float)startX + 250, (float)startY + gap * 2 }, 40, 2, valueColor);
+
+    // Đường gạch ngang nhỏ ngăn cách phần nhóm
+    DrawLine(startX, startY + gap * 3 - 10, boxX + boxWidth - 80, startY + gap * 3 - 10, Fade(LIGHTGRAY, 0.3f));
+
+    // Dòng 4: Nhóm thực hiện
+    DrawTextEx(gameFont, "Nhóm thực hiện: Nhóm 10", Vector2{ (float)startX, (float)startY + gap * 3 + 10 }, 45, 2, GOLD);
+
+    // Danh sách thành viên (Thụt lề vào 50px so với lề trái)
+    int listX = startX + 50;
+    int listY = startY + gap * 4 + 10;
+    int listGap = 45;
+
+    DrawTextEx(gameFont, "1. Lương Nguyễn Hoàng Vũ - 24120493", Vector2{ (float)listX, (float)listY }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "2. Đinh Đức Hiếu - 24120002", Vector2{ (float)listX, (float)listY + listGap }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "3. Đào Thanh Phong - 24120006", Vector2{ (float)listX, (float)listY + listGap * 2 }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "4. Lê Hùng Thắng - 24120137", Vector2{ (float)listX, (float)listY + listGap * 3 }, 35, 2, nameColor);
+    DrawTextEx(gameFont, "5. Nguyễn Anh Đức - 24120289", Vector2{ (float)listX, (float)listY + listGap * 4 }, 35, 2, nameColor);
+    // Dòng cuối: Công nghệ (Căn giữa ở đáy khung panel)
+    const char* techText = "Công nghệ: C++ & Thư viện Raylib";
+    Vector2 techSize = MeasureTextEx(gameFont, techText, 35, 2);
+    DrawTextEx(gameFont, techText, Vector2{ (float)GetScreenWidth() / 2 - techSize.x / 2, (float)boxY + boxHeight - 60 }, 35, 2, GRAY);
+
+    // ==========================================
+    // 6. NÚT ESC THOÁT BÊN NGOÀI KHUNG (HIỆU ỨNG CHỚP TẮT)
+    // ==========================================
+    // Dùng hàm GetTime() để tạo màu nhấp nháy Đỏ - Đỏ thẫm mỗi 0.3 giây
+    Color escColor = (((int)(GetTime() * 3)) % 2 == 0) ? RED : MAROON;
+    const char* escText = "Nhan [ESC] de quay lai Menu";
+    Vector2 escSize = MeasureTextEx(gameFont, escText, 30, 2);
+    DrawTextEx(gameFont, escText, Vector2{ (float)GetScreenWidth() / 2 - escSize.x / 2, (float)GetScreenHeight() - 60 }, 30, 2, escColor);
 
     EndDrawing();
 }
@@ -951,7 +1022,7 @@ void DrawAndHandleSettings(Texture2D background, Font gameFont) {
             DrawTextEx(gameFont, _BGM_ON ? "BẬT" : "TẮT", Vector2{ btnRec.x + 420, btnRec.y + 22 }, 30, 2, _BGM_ON ? GREEN : RED);
         }
         else if (i == 1) {
-            DrawTextEx(gameFont, "HIỆU ỨNG:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
+            DrawTextEx(gameFont, "ÂM THANH:", Vector2{ btnRec.x + 30, btnRec.y + 22 }, 30, 2, WHITE);
             DrawTextEx(gameFont, _SFX_ON ? "BẬT" : "TẮT", Vector2{ btnRec.x + 420, btnRec.y + 22 }, 30, 2, _SFX_ON ? GREEN : RED);
         }
         else if (i == 2) {
@@ -983,7 +1054,7 @@ void DrawAndHandleGame(Texture2D background, Font gameFont, Font pieceFont) {
     DrawGameUI(background, gameFont, pieceFont);
     DrawAndHandleGameOver(gameFont);
     DrawAndHandlePauseMenu(gameFont);
-
+    DrawAndHandleQuickSaveLoad(gameFont);
     EndDrawing();
 }
 
@@ -1320,4 +1391,74 @@ void DrawAndHandleSetup(Texture2D background, Font gameFont) {
         30, 2, RED);
 
     EndDrawing();
+}
+// ==========================================================
+// HÀM VẼ VÀ XỬ LÝ NHẬP TÊN FILE KHI BẤM L HOẶC T
+// ==========================================================
+void DrawAndHandleQuickSaveLoad(Font gameFont) {
+    if (!_IS_QUICK_SAVING && !_IS_QUICK_LOADING) return;
+
+    static char fileName[50] = "\0";
+    static int nameCount = 0;
+
+    // Phủ lớp đen mờ lên game
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.7f));
+
+    // Vẽ cái hộp
+    int boxWidth = 600; int boxHeight = 300;
+    int boxX = (GetScreenWidth() - boxWidth) / 2;
+    int boxY = (GetScreenHeight() - boxHeight) / 2;
+
+    DrawRectangle(boxX, boxY, boxWidth, boxHeight, Fade(RAYWHITE, 0.95f));
+    DrawRectangleLinesEx(Rectangle{ (float)boxX, (float)boxY, (float)boxWidth, (float)boxHeight }, 5, DARKGRAY);
+
+    // --- LOGIC NHẬP CHỮ ---
+    int key = GetCharPressed();
+    while (key > 0) {
+        if ((key >= 32) && (key <= 125) && (nameCount < 40)) {
+            fileName[nameCount] = (char)key;
+            fileName[nameCount + 1] = '\0';
+            nameCount++;
+        }
+        key = GetCharPressed();
+    }
+    if (IsKeyPressed(KEY_BACKSPACE) && nameCount > 0) {
+        nameCount--; fileName[nameCount] = '\0';
+    }
+
+    // --- LOGIC XÁC NHẬN / HỦY ---
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        PlaySelectSfx();
+        _IS_QUICK_SAVING = false;
+        _IS_QUICK_LOADING = false;
+        fileName[0] = '\0'; nameCount = 0;
+    }
+    if (IsKeyPressed(KEY_ENTER) && nameCount > 0) {
+        PlaySelectSfx();
+        std::string fullPath = std::string(fileName) + ".sav";
+
+        if (_IS_QUICK_SAVING) {
+            SaveGame(fullPath); // Gọi hàm lưu
+        }
+        else if (_IS_QUICK_LOADING) {
+            LoadGame(fullPath); // Gọi hàm tải (Nhớ include file SaveLoad.h nếu chưa có)
+            _GAME_STATE = 1; // Đảm bảo load xong thì vẫn ở màn hình chơi
+        }
+
+        _IS_QUICK_SAVING = false;
+        _IS_QUICK_LOADING = false;
+        fileName[0] = '\0'; nameCount = 0; // Reset tên file
+    }
+
+    // --- VẼ CHỮ TRONG HỘP ---
+    const char* title = _IS_QUICK_SAVING ? "NHAP TEN FILE DE LUU:" : "NHAP TEN FILE DE TAI:";
+    DrawTextEx(gameFont, title, Vector2{ (float)boxX + 50, (float)boxY + 40 }, 40, 2, DARKGRAY);
+
+    DrawRectangle(boxX + 40, boxY + 110, 520, 60, LIGHTGRAY); // Khung viền chỗ nhập
+    DrawTextEx(gameFont, fileName, Vector2{ (float)boxX + 50, (float)boxY + 120 }, 40, 2, RED);
+
+    // Con trỏ nhấp nháy
+    if (((int)(GetTime() * 2)) % 2 == 0) DrawText("_", boxX + 50 + MeasureText(fileName, 40), boxY + 120, 40, RED);
+
+    DrawText("ENTER: Xac nhan | ESC: Huy bo", boxX + 130, boxY + 220, 20, DARKGRAY);
 }
